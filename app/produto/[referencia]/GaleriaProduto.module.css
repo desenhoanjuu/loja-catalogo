@@ -8,11 +8,69 @@
     padding: 24px 24px 72px;
   }
   
+  /* Coluna do produto ao lado dos filtros */
+  .conteudoProduto {
+    min-width: 0;
+  }
+
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--fs-xs);
+    color: var(--ink-muted);
+    margin: 0 0 20px 0;
+    text-transform: capitalize;
+  }
+
+  .breadcrumb a {
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--accent);
+  }
+
+  .breadcrumbAtual {
+    color: var(--ink);
+    font-weight: 500;
+    text-transform: none;
+  }
+
   .gridProduto {
     display: grid;
-    grid-template-columns: 84px minmax(0, 520px) 1fr;
-    gap: 32px;
+    grid-template-columns: 76px minmax(0, 1.1fr) minmax(280px, 1fr);
+    gap: 28px;
     align-items: start;
+  }
+
+  /* ---------- PEÇAS SEMELHANTES ---------- */
+  .similares {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--line);
+  }
+
+  .tituloSimilares {
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 20px 0;
+  }
+
+  .gridSimilares {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 32px 18px;
+  }
+
+  @media (max-width: 1120px) {
+    .gridSimilares {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   
   /* ---------- COLUNA 1: MINIATURAS ---------- */
@@ -394,5 +452,13 @@
     }
     .tituloProduto {
       font-size: 1.375rem;
+    }
+    /* No celular os filtros ficam só na vitrine, para o produto aparecer primeiro */
+    .esconderNoMobile {
+      display: none;
+    }
+    .gridSimilares {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px 12px;
     }
   }
