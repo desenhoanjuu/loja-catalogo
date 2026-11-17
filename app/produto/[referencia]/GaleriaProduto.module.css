@@ -225,6 +225,65 @@
     padding-left: 12px;
   }
   
+  .linhaTags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .linhaTags .tagMarca {
+    margin-bottom: 0;
+  }
+
+  .tagConjunto {
+    display: inline-block;
+    background-color: var(--accent-soft);
+    color: var(--accent-strong);
+    border: 1px solid var(--accent-line);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  /* Conjunto: um bloco por peça */
+  .listaPecasConjunto {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .blocoPeca {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-left: 12px;
+    border-left: 2px solid var(--line);
+  }
+
+  .listaDisponibilidade {
+    margin-top: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .listaDisponibilidade .boxDisponibilidade {
+    margin-top: 0;
+  }
+
+  .semFotoCor {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+
   .tagMarca {
     display: inline-block;
     background-color: var(--ink);

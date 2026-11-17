@@ -1,17 +1,27 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
-import { Produto, obterFotosCard, pastasDeCor } from '../lib/catalogo'
+import local from './CardProduto.module.css'
+import { Produto, obterFotosCard, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
   produto: Produto
   r2BaseUrl: string
   meta?: string // texto acima do título; padrão é "MARCA • Ref: 123"
+  conjunto?: Produto[] // quando o card representa um conjunto (todas as peças, na ordem)
 }
 
-export default function CardProduto({ produto, r2BaseUrl, meta }: Props) {
-  const { capa, hover } = obterFotosCard(produto.fotos, produto.referencia, r2BaseUrl)
-  const totalCores = pastasDeCor(produto.fotos).length
+export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Props) {
+  const ehConjunto = !!conjunto && conjunto.length > 1
+
+  // Num conjunto, a foto vem da primeira peça que tiver foto
+  const pecaComFoto = ehConjunto
+    ? conjunto!.find((p) => pastasDeCor(p.fotos).length > 0) || conjunto![0]
+    : produto
+  const { capa, hover } = obterFotosCard(pecaComFoto.fotos, pecaComFoto.referencia, r2BaseUrl)
+  const totalCores = pastasDeCor(pecaComFoto.fotos).length
   const titulo = produto.descricao || `Referência ${produto.referencia}`
+  const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade
+  const colecao = ehConjunto ? conjunto![0].colecao : produto.colecao
 
   return (
     <Link href={`/produto/${produto.referencia}`} className={styles.card}>
@@ -20,7 +30,7 @@ export default function CardProduto({ produto, r2BaseUrl, meta }: Props) {
           <>
             <img
               src={capa}
-              alt={titulo}
+              alt={ehConjunto ? `Conjunto ${conjunto!.map(rotuloPeca).join(' e ')}` : titulo}
               className={`${styles.cardImagem} ${!hover ? styles.cardImagemUnica : ''}`}
             />
             {hover && <img src={hover} alt="" className={styles.cardImagemHover} />}
@@ -29,15 +39,37 @@ export default function CardProduto({ produto, r2BaseUrl, meta }: Props) {
           <span className={styles.semFoto}>Sem imagem</span>
         )}
 
-        {produto.novidade && <span className={styles.badgeNovidade}>Novidade</span>}
-        {produto.colecao && <span className={styles.badgeColecao}>{produto.colecao}</span>}
+        {novidade && <span className={styles.badgeNovidade}>Novidade</span>}
+        {colecao && <span className={styles.badgeColecao}>{colecao}</span>}
         {totalCores > 1 && <span className={styles.badgeCores}>{totalCores} cores</span>}
       </div>
 
-      <p className={styles.cardMeta}>
-        {meta ?? `${produto.marca ? `${produto.marca} • ` : ''}Ref: ${produto.referencia}`}
-      </p>
-      <h2 className={styles.cardTitulo}>{titulo}</h2>
+      {ehConjunto ? (
+        <>
+          <p className={styles.cardMeta}>{meta ?? `Conjunto${produto.marca ? ` • ${produto.marca}` : ''}`}</p>
+          <ul className={local.listaPecas}>
+            {conjunto!.map((p) => {
+              const temPE = (p.estoque_pe ?? 0) > 0
+              return (
+                <li key={p.referencia} className={local.linhaPeca}>
+                  <span
+                    className={`${local.ponto} ${temPE ? local.pontoPE : ''}`}
+                    title={temPE ? 'Pronta entrega' : 'Sem estoque'}
+                  />
+                  {rotuloPeca(p)}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      ) : (
+        <>
+          <p className={styles.cardMeta}>
+            {meta ?? `${produto.marca ? `${produto.marca} • ` : ''}Ref: ${produto.referencia}`}
+          </p>
+          <h2 className={styles.cardTitulo}>{titulo}</h2>
+        </>
+      )}
     </Link>
   )
 }

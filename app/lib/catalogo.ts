@@ -199,7 +199,11 @@ export interface ProdutoSimilar {
   meta: string
 }
 
-export async function buscarSimilares(produto: Produto, limite = 8): Promise<ProdutoSimilar[]> {
+export async function buscarSimilares(
+  produto: Produto,
+  limite = 8,
+  excluir: string[] = [] // ex.: as outras peças do mesmo conjunto
+): Promise<ProdutoSimilar[]> {
   // Uma consulta simples por critério (mais robusta que um único .or com textos com espaço)
   const base = () =>
     supabase
@@ -232,6 +236,7 @@ export async function buscarSimilares(produto: Produto, limite = 8): Promise<Pro
     })
   }
 
+  excluir.forEach((ref) => candidatos.delete(ref))
   const data = Array.from(candidatos.values())
 
   const pontuados = data
@@ -264,4 +269,93 @@ export async function buscarSimilares(produto: Produto, limite = 8): Promise<Pro
     .sort((a, b) => b.pontos - a.pontos)
     .slice(0, limite)
     .map(({ produto: p, meta }) => ({ produto: p, meta }))
+}
+
+// ==========================================
+// CONJUNTOS (ex.: Blusa 830697 + Calça 830699)
+// ==========================================
+export interface Conjunto {
+  id: string
+  referencias: string[]
+}
+
+// Lê os conjuntos cadastrados no painel. Se a tabela ainda não existir, o site segue normal.
+export async function carregarConjuntos(): Promise<Conjunto[]> {
+  const { data, error } = await supabase.from('conjuntos').select('id, referencias')
+  if (error) {
+    console.error('Erro ao ler conjuntos:', error.message)
+    return []
+  }
+  return (data || []).map((c) => ({ id: String(c.id), referencias: (c.referencias || []).map(String) }))
+}
+
+export async function buscarConjuntoDaReferencia(referencia: string): Promise<string[] | null> {
+  const { data, error } = await supabase
+    .from('conjuntos')
+    .select('referencias')
+    .contains('referencias', [referencia])
+    .limit(1)
+  if (error) {
+    console.error('Erro ao ler conjunto:', error.message)
+    return null
+  }
+  const refs = (data?.[0]?.referencias || []).map(String)
+  return refs.length > 1 ? refs : null
+}
+
+// "Blusa 830697" — primeira palavra do tipo da peça + referência
+export function rotuloPeca(p: Produto) {
+  const tipo = String(p.tipo_peca || '').trim().split(' ')[0]
+  return `${formatarNome(tipo) || 'Peça'} ${p.referencia}`
+}
+
+export type ItemVitrine =
+  | { tipo: 'produto'; produto: Produto }
+  | { tipo: 'conjunto'; pecas: Produto[] }
+
+// Junta as peças de um mesmo conjunto num único card, na posição da primeira que aparecer
+export async function agruparConjuntos(produtos: Produto[]): Promise<ItemVitrine[]> {
+  const conjuntos = await carregarConjuntos()
+  if (conjuntos.length === 0) return produtos.map((produto) => ({ tipo: 'produto', produto }))
+
+  const conjuntoDaRef = new Map<string, Conjunto>()
+  conjuntos.forEach((c) => c.referencias.forEach((r) => conjuntoDaRef.set(r, c)))
+
+  const porRef = new Map<string, Produto>()
+  produtos.forEach((p) => porRef.set(p.referencia, p))
+
+  // Peças do conjunto que não vieram no resultado (ex.: filtro só de calças): busca as ativas
+  const faltando = new Set<string>()
+  produtos.forEach((p) => {
+    conjuntoDaRef.get(p.referencia)?.referencias.forEach((r) => {
+      if (!porRef.has(r)) faltando.add(r)
+    })
+  })
+  if (faltando.size > 0) {
+    const { data } = await supabase
+      .from('produtos')
+      .select('*')
+      .eq('ativo', true)
+      .in('referencia', Array.from(faltando))
+    data?.forEach((p) => porRef.set(p.referencia, p))
+  }
+
+  const itens: ItemVitrine[] = []
+  const conjuntosUsados = new Set<string>()
+
+  produtos.forEach((produto) => {
+    const conjunto = conjuntoDaRef.get(produto.referencia)
+    if (!conjunto) {
+      itens.push({ tipo: 'produto', produto })
+      return
+    }
+    if (conjuntosUsados.has(conjunto.id)) return
+    conjuntosUsados.add(conjunto.id)
+
+    const pecas = conjunto.referencias.map((r) => porRef.get(r)).filter(Boolean) as Produto[]
+    if (pecas.length > 1) itens.push({ tipo: 'conjunto', pecas })
+    else itens.push({ tipo: 'produto', produto })
+  })
+
+  return itens
 }

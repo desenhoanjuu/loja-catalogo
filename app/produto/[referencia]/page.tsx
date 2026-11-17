@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import GaleriaProduto from './GaleriaProduto'
+import GaleriaProduto, { Peca } from './GaleriaProduto'
 import CabecalhoLoja from '../../componentes/CabecalhoLoja'
 import FiltrosLaterais from '../../componentes/FiltrosLaterais'
 import CardProduto from '../../componentes/CardProduto'
@@ -7,7 +7,9 @@ import vitrine from '../../Vitrine.module.css'
 import styles from './GaleriaProduto.module.css'
 import {
   Params,
+  Produto,
   supabase,
+  buscarConjuntoDaReferencia,
   buscarSimilares,
   carregarEstrutura,
   montarUrlFiltro,
@@ -30,13 +32,39 @@ export default async function PaginaProduto({
     .eq('referencia', referencia)
     .single()
 
+  // Se a referência faz parte de um conjunto, carrega as outras peças (na ordem do cadastro)
+  let pecasProduto: Produto[] = produto ? [produto] : []
+  if (produto) {
+    const refsConjunto = await buscarConjuntoDaReferencia(produto.referencia)
+    if (refsConjunto) {
+      const { data: membros } = await supabase.from('produtos').select('*').in('referencia', refsConjunto)
+      const porRef = new Map((membros || []).map((m) => [m.referencia, m]))
+      const ordenadas = refsConjunto
+        .map((r) => porRef.get(r))
+        .filter((m): m is Produto => !!m && (m.ativo || m.referencia === produto.referencia))
+      if (ordenadas.length > 1) pecasProduto = ordenadas
+    }
+  }
+
+  const pecas: Peca[] = pecasProduto.map((p) => ({
+    referencia: p.referencia,
+    descricao: p.descricao || `Referência ${p.referencia}`,
+    marca: p.marca,
+    tipoPeca: p.tipo_peca,
+    grade: p.grade,
+    composicao: p.composicao,
+    fotosPorCor: p.fotos || {},
+    caixasPorCor: p.caixas_por_cor || {},
+    estoquePorCor: p.estoque_por_cor || {},
+  }))
+
   // A aba ativa no cabeçalho é a marca do produto
   const marca = normalizarMarca(produto?.marca)
   const baseParams: Params = marca === 'TODOS' ? {} : { marca }
 
   const [estrutura, similares] = await Promise.all([
     carregarEstrutura(marca),
-    produto ? buscarSimilares(produto) : Promise.resolve([]),
+    produto ? buscarSimilares(produto, 8, pecasProduto.map((p) => p.referencia)) : Promise.resolve([]),
   ])
 
   return (
@@ -90,18 +118,7 @@ export default async function PaginaProduto({
                   <span className={styles.breadcrumbAtual}>Ref. {produto.referencia}</span>
                 </nav>
 
-                <GaleriaProduto
-                  referencia={produto.referencia}
-                  descricao={produto.descricao || `Referência ${produto.referencia}`}
-                  marca={produto.marca}
-                  tipoPeca={produto.tipo_peca}
-                  grade={produto.grade}
-                  composicao={produto.composicao}
-                  fotosPorCor={produto.fotos || {}}
-                  caixasPorCor={produto.caixas_por_cor || {}}
-                  estoquePorCor={produto.estoque_por_cor || {}}
-                  r2BaseUrl={r2BaseUrl}
-                />
+                <GaleriaProduto pecas={pecas} r2BaseUrl={r2BaseUrl} />
 
                 {similares.length > 0 && (
                   <section className={styles.similares}>

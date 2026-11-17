@@ -7,6 +7,7 @@ import styles from './Vitrine.module.css'
 import {
   Params,
   supabase,
+  agruparConjuntos,
   carregarEstrutura,
   limparBusca,
   montarUrlFiltro,
@@ -61,6 +62,7 @@ export default async function Vitrine({
   ])
 
   const banners = (bannersRaw || []) as BannerItem[]
+  const itens = await agruparConjuntos(produtos || [])
   const configMarcaAtiva = !ehTodos ? estrutura.mapaLogos[marca] : null
 
   const filtrosAtivos: { chave: string; label: string; valor: string }[] = []
@@ -111,7 +113,7 @@ export default async function Vitrine({
             <div className={styles.barraFiltroAtivo}>
               <div className={styles.listaChips}>
                 <span className={styles.contadorResultados}>
-                  {produtos ? `${produtos.length} peça(s)` : '0 peças'}
+                  {itens.length === 1 ? '1 item' : `${itens.length} itens`}
                   {!ehTodos ? ` em ${marca}` : ''}
                 </span>
 
@@ -136,11 +138,20 @@ export default async function Vitrine({
               )}
             </div>
 
-            {produtos && produtos.length > 0 ? (
+            {itens.length > 0 ? (
               <div className={styles.gridVitrine}>
-                {produtos.map((produto) => (
-                  <CardProduto key={produto.referencia} produto={produto} r2BaseUrl={r2BaseUrl} />
-                ))}
+                {itens.map((item) =>
+                  item.tipo === 'conjunto' ? (
+                    <CardProduto
+                      key={`cj-${item.pecas[0].referencia}`}
+                      produto={item.pecas[0]}
+                      conjunto={item.pecas}
+                      r2BaseUrl={r2BaseUrl}
+                    />
+                  ) : (
+                    <CardProduto key={item.produto.referencia} produto={item.produto} r2BaseUrl={r2BaseUrl} />
+                  )
+                )}
               </div>
             ) : (
               <div className={styles.vazio}>

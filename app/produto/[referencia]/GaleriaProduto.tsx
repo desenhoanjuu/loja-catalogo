@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import styles from './GaleriaProduto.module.css'
 
-interface GaleriaProps {
+// Uma peça do produto. Produto simples = 1 peça; conjunto = 2 ou mais.
+export interface Peca {
   referencia: string
   descricao: string
   marca: string
@@ -13,15 +14,23 @@ interface GaleriaProps {
   fotosPorCor: Record<string, string[]>
   caixasPorCor: Record<string, string>
   estoquePorCor: Record<string, number>
+}
+
+interface GaleriaProps {
+  pecas: Peca[]
   r2BaseUrl: string
+}
+
+interface InfoPecaNaCor {
+  caixa: string | null
+  estoque: number
 }
 
 interface CorExibida {
   chave: string
   nome: string
-  caixa: string | null
-  estoque: number | null // null = sem dado da API (produto ainda não sincronizado)
-  fotos: string[]
+  fotos: string[] // URLs completas
+  porPeca: Record<string, InfoPecaNaCor> // vazio = sem dado da API (produto ainda não sincronizado)
 }
 
 // Pastas do R2 que são ângulos de foto, e não cores
@@ -57,7 +66,7 @@ function ordenarFotos(arquivos: string[]): string[] {
   return [...arquivos].sort((a, b) => peso(a) - peso(b) || a.localeCompare(b))
 }
 
-function formatarNome(texto: string) {
+function formatarNome(texto: string | null | undefined) {
   if (!texto) return ''
   return texto
     .toLowerCase()
@@ -66,8 +75,12 @@ function formatarNome(texto: string) {
     .join(' ')
 }
 
-// Encontra a pasta de fotos que corresponde à cor da API
-// 1º tenta igualdade exata ("BEGE CLARO" = "Bege Claro"), depois prefixo ("PRETO" ~ "Preto-black")
+function rotuloCurto(peca: Peca) {
+  const tipo = String(peca.tipoPeca || '').trim().split(' ')[0]
+  return `${formatarNome(tipo) || 'Peça'} ${peca.referencia}`
+}
+
+// 1º igualdade exata ("BEGE CLARO" = "Bege Claro"), depois prefixo ("PRETO" ~ "Preto-black")
 function acharPastaDaCor(corApi: string, pastas: string[]): string | null {
   const alvo = normalizar(corApi)
   if (!alvo) return null
@@ -80,75 +93,89 @@ function acharPastaDaCor(corApi: string, pastas: string[]): string | null {
   return parecida || null
 }
 
-function montarCores(
-  fotosPorCor: Record<string, string[]>,
-  caixasPorCor: Record<string, string>,
-  estoquePorCor: Record<string, number>
-): CorExibida[] {
-  const pastasDeCor = Object.keys(fotosPorCor || {}).filter((p) => !ehPastaDeAngulo(p))
+function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
+  const url = (ref: string, arquivo: string) => `${r2BaseUrl}/${ref}/${encodeURIComponent(arquivo)}`
 
-  // Cores que existem na API (exceto caixas LO)
-  const coresApi = Array.from(
-    new Set([...Object.keys(caixasPorCor || {}), ...Object.keys(estoquePorCor || {})])
-  ).filter((cor) => !ehCaixaLO(caixasPorCor?.[cor]))
+  const pastasPorPeca = pecas.map((p) => {
+    const fotos = p.fotosPorCor || {}
+    return {
+      ref: p.referencia,
+      fotos,
+      pastas: Object.keys(fotos).filter((k) => !ehPastaDeAngulo(k) && (fotos[k]?.length ?? 0) > 0),
+    }
+  })
 
-  if (coresApi.length > 0) {
-    const cores = coresApi.map((cor) => {
-      const pasta = acharPastaDaCor(cor, pastasDeCor)
-      return {
-        chave: cor,
-        nome: formatarNome(cor),
-        caixa: caixasPorCor?.[cor] ?? null,
-        estoque: estoquePorCor?.[cor] ?? 0,
-        fotos: pasta ? ordenarFotos(fotosPorCor[pasta] || []) : [],
-      }
-    })
-    // Cores com estoque primeiro, mantendo a ordem da API entre elas
-    return cores.sort((a, b) => Number((b.estoque ?? 0) > 0) - Number((a.estoque ?? 0) > 0))
+  // Procura as fotos da cor em cada peça, na ordem (no conjunto a foto costuma estar numa só)
+  const fotosDaCor = (nomeCor: string): string[] => {
+    for (const pp of pastasPorPeca) {
+      const pasta = acharPastaDaCor(nomeCor, pp.pastas)
+      if (pasta) return ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a))
+    }
+    return []
   }
 
-  // Produto ainda sem dados da API: usa as pastas de fotos (sem ângulos)
-  return pastasDeCor.map((pasta) => ({
-    chave: pasta,
-    nome: formatarNome(pasta),
-    caixa: null,
-    estoque: null,
-    fotos: ordenarFotos(fotosPorCor[pasta] || []),
-  }))
+  const mapa = new Map<string, CorExibida>()
+
+  pecas.forEach((p) => {
+    const caixas = p.caixasPorCor || {}
+    const estoques = p.estoquePorCor || {}
+    const coresApi = Array.from(new Set([...Object.keys(caixas), ...Object.keys(estoques)])).filter(
+      (cor) => !ehCaixaLO(caixas[cor])
+    )
+
+    coresApi.forEach((cor) => {
+      const chave = normalizar(cor)
+      if (!chave) return
+      let item = mapa.get(chave)
+      if (!item) {
+        item = { chave, nome: formatarNome(cor), fotos: fotosDaCor(cor), porPeca: {} }
+        mapa.set(chave, item)
+      }
+      item.porPeca[p.referencia] = { caixa: caixas[cor] ?? null, estoque: estoques[cor] ?? 0 }
+    })
+  })
+
+  if (mapa.size > 0) {
+    const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
+    return Array.from(mapa.values()).sort((a, b) => Number(temEstoque(b)) - Number(temEstoque(a)))
+  }
+
+  // Ainda sem dados da API: usa as pastas de fotos (sem ângulos)
+  const porPasta = new Map<string, CorExibida>()
+  pastasPorPeca.forEach((pp) =>
+    pp.pastas.forEach((pasta) => {
+      const chave = normalizar(pasta)
+      if (porPasta.has(chave)) return
+      porPasta.set(chave, {
+        chave,
+        nome: formatarNome(pasta),
+        fotos: ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a)),
+        porPeca: {},
+      })
+    })
+  )
+  return Array.from(porPasta.values())
 }
 
-export default function GaleriaProduto({
-  referencia,
-  descricao,
-  marca,
-  tipoPeca,
-  grade,
-  composicao,
-  fotosPorCor,
-  caixasPorCor,
-  estoquePorCor,
-  r2BaseUrl,
-}: GaleriaProps) {
-  const cores = montarCores(fotosPorCor, caixasPorCor, estoquePorCor)
+export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
+  const principal = pecas[0]
+  const ehConjunto = pecas.length > 1
+  const cores = montarCores(pecas, r2BaseUrl)
 
+  const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
   const corInicial =
-    cores.find((c) => c.fotos.length > 0 && (c.estoque ?? 0) > 0) ||
-    cores.find((c) => c.fotos.length > 0) ||
-    cores[0]
+    cores.find((c) => c.fotos.length > 0 && temEstoque(c)) || cores.find((c) => c.fotos.length > 0) || cores[0]
 
   const [chaveSelecionada, setChaveSelecionada] = useState<string | null>(corInicial?.chave ?? null)
   const [indiceFoto, setIndiceFoto] = useState(0)
 
   const corAtual = cores.find((c) => c.chave === chaveSelecionada) || null
-  const fotosDaCorAtual = corAtual?.fotos ?? []
+  const fotos = corAtual?.fotos ?? []
+  const fotoPrincipal = fotos.length > 0 ? fotos[indiceFoto] || fotos[0] : null
 
-  const montarUrlFoto = (arquivo: string) =>
-    `${r2BaseUrl}/${referencia}/${encodeURIComponent(arquivo)}`
-
-  const fotoPrincipal =
-    fotosDaCorAtual.length > 0
-      ? montarUrlFoto(fotosDaCorAtual[indiceFoto] || fotosDaCorAtual[0])
-      : null
+  const tituloExibicao = ehConjunto
+    ? `Conjunto ${pecas.map((p) => formatarNome(String(p.tipoPeca || '').split(' ')[0]) || 'Peça').join(' + ')}`
+    : principal.descricao
 
   const trocarCor = (chave: string) => {
     setChaveSelecionada(chave)
@@ -156,40 +183,40 @@ export default function GaleriaProduto({
   }
 
   const fotoAnterior = () => {
-    if (fotosDaCorAtual.length <= 1) return
-    setIndiceFoto((prev) => (prev === 0 ? fotosDaCorAtual.length - 1 : prev - 1))
+    if (fotos.length <= 1) return
+    setIndiceFoto((prev) => (prev === 0 ? fotos.length - 1 : prev - 1))
   }
 
   const proximaFoto = () => {
-    if (fotosDaCorAtual.length <= 1) return
-    setIndiceFoto((prev) => (prev === fotosDaCorAtual.length - 1 ? 0 : prev + 1))
+    if (fotos.length <= 1) return
+    setIndiceFoto((prev) => (prev === fotos.length - 1 ? 0 : prev + 1))
   }
 
-  const subtituloExibicao = tipoPeca ? formatarNome(tipoPeca) : 'Produto'
+  const temDadosApi = !!corAtual && Object.keys(corAtual.porPeca).length > 0
 
   return (
     <div className={styles.gridProduto}>
       {/* COLUNA 1: Miniaturas da cor selecionada */}
       <div className={styles.colunaMiniaturas}>
-        {fotosDaCorAtual.length > 1 && (
+        {fotos.length > 1 && (
           <button type="button" onClick={fotoAnterior} className={styles.setaVertical} aria-label="Foto anterior">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
           </button>
         )}
         <div className={styles.listaMiniaturas}>
-          {fotosDaCorAtual.map((arquivo, idx) => (
+          {fotos.map((foto, idx) => (
             <button
-              key={arquivo}
+              key={foto}
               type="button"
               onClick={() => setIndiceFoto(idx)}
               className={`${styles.btnMiniatura} ${idx === indiceFoto ? styles.btnMiniaturaAtiva : ''}`}
               aria-label={`Ver foto ${idx + 1}`}
             >
-              <img src={montarUrlFoto(arquivo)} alt="" className={styles.imgMiniatura} />
+              <img src={foto} alt="" className={styles.imgMiniatura} />
             </button>
           ))}
         </div>
-        {fotosDaCorAtual.length > 1 && (
+        {fotos.length > 1 && (
           <button type="button" onClick={proximaFoto} className={styles.setaVertical} aria-label="Próxima foto">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
           </button>
@@ -199,27 +226,27 @@ export default function GaleriaProduto({
       {/* COLUNA 2: Foto principal */}
       <div className={styles.colunaPrincipal}>
         <div className={styles.wrapperFotoPrincipal}>
-          {fotosDaCorAtual.length > 1 && (
+          {fotos.length > 1 && (
             <button type="button" onClick={fotoAnterior} className={`${styles.setaLateral} ${styles.setaEsquerda}`} aria-label="Foto anterior">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
             </button>
           )}
 
           {fotoPrincipal ? (
-            <img src={fotoPrincipal} alt={`${descricao} - ${corAtual?.nome ?? ''}`} className={styles.imgPrincipal} />
+            <img src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={styles.imgPrincipal} />
           ) : (
             <span style={{ color: 'var(--ink-muted)', fontSize: '14px' }}>Sem foto para esta cor</span>
           )}
 
-          {fotosDaCorAtual.length > 1 && (
+          {fotos.length > 1 && (
             <button type="button" onClick={proximaFoto} className={`${styles.setaLateral} ${styles.setaDireita}`} aria-label="Próxima foto">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
             </button>
           )}
 
-          {fotosDaCorAtual.length > 1 && (
+          {fotos.length > 1 && (
             <div className={styles.indicadoresBase}>
-              {fotosDaCorAtual.map((_, idx) => (
+              {fotos.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
@@ -235,22 +262,44 @@ export default function GaleriaProduto({
 
       {/* COLUNA 3: Informações */}
       <div className={styles.colunaInfo}>
-        {marca && <span className={styles.tagMarca}>{marca}</span>}
-
-        <h1 className={styles.tituloProduto}>{descricao}</h1>
-        <p className={styles.codigoRef}>Código: {referencia}</p>
-
-        <div className={styles.boxDescricao}>
-          <p className={styles.linhaResumoPeca}>
-            {referencia} - {subtituloExibicao}
-          </p>
-          <p className={styles.linhaDetalhe}>
-            <strong>Grade:</strong> {grade || 'Não informada'}
-          </p>
-          <p className={styles.linhaDetalhe}>
-            <strong>Composição:</strong> {composicao || 'Não informada'}
-          </p>
+        <div className={styles.linhaTags}>
+          {principal.marca && <span className={styles.tagMarca}>{principal.marca}</span>}
+          {ehConjunto && <span className={styles.tagConjunto}>Conjunto</span>}
         </div>
+
+        <h1 className={styles.tituloProduto}>{tituloExibicao}</h1>
+        <p className={styles.codigoRef}>
+          {ehConjunto ? `Códigos: ${pecas.map((p) => p.referencia).join(' e ')}` : `Código: ${principal.referencia}`}
+        </p>
+
+        {ehConjunto ? (
+          <div className={styles.listaPecasConjunto}>
+            {pecas.map((p) => (
+              <div key={p.referencia} className={styles.blocoPeca}>
+                <p className={styles.linhaResumoPeca}>{rotuloCurto(p)}</p>
+                <p className={styles.linhaDetalhe}>{p.descricao}</p>
+                <p className={styles.linhaDetalhe}>
+                  <strong>Grade:</strong> {p.grade || 'Não informada'}
+                </p>
+                <p className={styles.linhaDetalhe}>
+                  <strong>Composição:</strong> {p.composicao || 'Não informada'}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.boxDescricao}>
+            <p className={styles.linhaResumoPeca}>
+              {principal.referencia} - {principal.tipoPeca ? formatarNome(principal.tipoPeca) : 'Produto'}
+            </p>
+            <p className={styles.linhaDetalhe}>
+              <strong>Grade:</strong> {principal.grade || 'Não informada'}
+            </p>
+            <p className={styles.linhaDetalhe}>
+              <strong>Composição:</strong> {principal.composicao || 'Não informada'}
+            </p>
+          </div>
+        )}
 
         <hr className={styles.divisor} />
 
@@ -264,46 +313,25 @@ export default function GaleriaProduto({
               {cores.map((cor) => {
                 const selecionada = cor.chave === chaveSelecionada
                 const capa = cor.fotos[0]
+                const caixa = Object.values(cor.porPeca).find((i) => i.caixa)?.caixa ?? null
 
                 return (
-                  <button
-                    key={cor.chave}
-                    type="button"
-                    onClick={() => trocarCor(cor.chave)}
-                    className={styles.itemCorBox}
-                  >
+                  <button key={cor.chave} type="button" onClick={() => trocarCor(cor.chave)} className={styles.itemCorBox}>
                     <div className={styles.selosCaixaTopo}>
-                      {(cor.estoque ?? 0) > 0 ? (
-                        <span className={styles.seloPE}>P.E.</span>
-                      ) : (
-                        <span className={styles.seloVazio}></span>
-                      )}
+                      {temEstoque(cor) ? <span className={styles.seloPE}>P.E.</span> : <span className={styles.seloVazio}></span>}
                     </div>
 
-                    <span className={styles.nomeCaixaTopo}>{cor.caixa ? `CX-${cor.caixa}` : '\u00A0'}</span>
+                    <span className={styles.nomeCaixaTopo}>{caixa ? `CX-${caixa}` : '\u00A0'}</span>
 
                     <div className={`${styles.thumbCor} ${selecionada ? styles.thumbCorAtiva : ''}`}>
                       {capa ? (
-                        <img src={montarUrlFoto(capa)} alt={cor.nome} className={styles.imgCor} />
+                        <img src={capa} alt={cor.nome} className={styles.imgCor} />
                       ) : (
-                        <span
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%',
-                            fontSize: '11px',
-                            color: 'var(--ink-muted)',
-                          }}
-                        >
-                          Sem foto
-                        </span>
+                        <span className={styles.semFotoCor}>Sem foto</span>
                       )}
                     </div>
 
-                    <span className={`${styles.nomeCor} ${selecionada ? styles.nomeCorAtiva : ''}`}>
-                      {cor.nome}
-                    </span>
+                    <span className={`${styles.nomeCor} ${selecionada ? styles.nomeCorAtiva : ''}`}>{cor.nome}</span>
                   </button>
                 )
               })}
@@ -311,14 +339,26 @@ export default function GaleriaProduto({
           </div>
         )}
 
-        {corAtual && corAtual.estoque !== null && (
-          <div className={styles.boxDisponibilidade}>
-            <span>
-              Disponibilidade: <strong>{corAtual.nome} {corAtual.caixa ? `(CX-${corAtual.caixa})` : ''}</strong>
-            </span>
-            <span className={corAtual.estoque > 0 ? styles.badgeEstoque : styles.badgeEsgotado}>
-              {corAtual.estoque > 0 ? `${corAtual.estoque} cxs.` : 'Esgotado'}
-            </span>
+        {corAtual && temDadosApi && (
+          <div className={styles.listaDisponibilidade}>
+            {pecas.map((p) => {
+              const info = corAtual.porPeca[p.referencia]
+              const rotulo = ehConjunto ? `${rotuloCurto(p)} — ${corAtual.nome}` : corAtual.nome
+              return (
+                <div key={p.referencia} className={styles.boxDisponibilidade}>
+                  <span>
+                    Disponibilidade: <strong>{rotulo} {info?.caixa ? `(CX-${info.caixa})` : ''}</strong>
+                  </span>
+                  {!info ? (
+                    <span className={styles.badgeEsgotado}>Não tem nesta cor</span>
+                  ) : (
+                    <span className={info.estoque > 0 ? styles.badgeEstoque : styles.badgeEsgotado}>
+                      {info.estoque > 0 ? `${info.estoque} cxs.` : 'Esgotado'}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
