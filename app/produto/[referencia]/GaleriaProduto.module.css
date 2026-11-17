@@ -1,0 +1,398 @@
+/* =========================================================
+   PÁGINA DO PRODUTO - LAYOUT 1 APRIMORADO
+   ========================================================= */
+
+   .container {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 24px 24px 72px;
+  }
+  
+  .gridProduto {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 520px) 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  
+  /* ---------- COLUNA 1: MINIATURAS ---------- */
+  .colunaMiniaturas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .setaVertical {
+    background: none;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s;
+  }
+  
+  .setaVertical:hover {
+    color: var(--accent);
+  }
+  
+  .listaMiniaturas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  
+  .btnMiniatura {
+    width: 76px;
+    height: 102px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background-color: var(--photo-bg);
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: border-color 0.15s, opacity 0.15s;
+  }
+  
+  .btnMiniatura:hover {
+    opacity: 1;
+    border-color: var(--ink-muted);
+  }
+  
+  .btnMiniaturaAtiva {
+    border: 2px solid var(--accent);
+    opacity: 1;
+  }
+  
+  .imgMiniatura {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+  
+  /* ---------- COLUNA 2: FOTO PRINCIPAL ---------- */
+  .colunaPrincipal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .wrapperFotoPrincipal {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    max-height: 680px;
+    background-color: var(--photo-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .imgPrincipal {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: top center;
+    display: block;
+  }
+  
+  .setaLateral {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    z-index: 2;
+  }
+  
+  .setaLateral:hover {
+    background-color: #ffffff;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  
+  .setaEsquerda {
+    left: 12px;
+  }
+  
+  .setaDireita {
+    right: 12px;
+  }
+  
+  .indicadoresBase {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 2;
+  }
+  
+  .indicadorPonto {
+    width: 18px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.85);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .indicadorPontoAtivo {
+    background-color: var(--accent);
+  }
+  
+  /* ---------- COLUNA 3: INFORMAÇÕES (LAYOUT 1) ---------- */
+  .colunaInfo {
+    padding-left: 12px;
+  }
+  
+  .tagMarca {
+    display: inline-block;
+    background-color: var(--ink);
+    color: #ffffff;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 5px 11px;
+    border-radius: 2px;
+    margin-bottom: 14px;
+  }
+  
+  .tituloProduto {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px 0;
+  }
+  
+  .codigoRef {
+    font-size: var(--fs-sm);
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+    margin: 0 0 22px 0;
+  }
+  
+  .boxDescricao {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .linhaResumoPeca {
+    font-size: var(--fs-md);
+    font-weight: 500;
+    color: var(--ink);
+    margin: 0;
+  }
+  
+  .linhaDetalhe {
+    font-size: var(--fs-sm);
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin: 0;
+  }
+  
+  .linhaDetalhe strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  
+  .divisor {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 24px 0;
+  }
+  
+  .labelCor {
+    font-size: var(--fs-sm);
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+  }
+  
+  .labelCor strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  
+  /* --- BLOCOS DE COR IDÊNTICOS AO PRINT 2 --- */
+  .areaCores {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+  }
+  
+  .gridCores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: flex-start;
+  }
+  
+  .itemCorBox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    width: 104px; /* Aumentado para acompanhar a imagem maior */
+  }
+  
+  .selosCaixaTopo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 4px;
+    height: 16px;
+  }
+  
+  .seloPE {
+    background-color: #059669;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  
+  .seloVazio {
+    height: 16px;
+    display: block;
+  }
+  
+  /* NOVO: Nome da caixa solto ACIMA da foto */
+  .nomeCaixaTopo {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+    text-align: center;
+    line-height: 1;
+  }
+  
+  /* FOTO GRANDE (104x138) LIVRE */
+  .thumbCor {
+    position: relative;
+    width: 104px; 
+    height: 138px; 
+    border-radius: 6px;
+    border: 2px solid transparent; /* Transparente por padrão, sem borda cinza dupla */
+    background-color: var(--photo-bg);
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+    margin-bottom: 8px; /* Espaço entre a foto e o nome da cor */
+  }
+  
+  .thumbCorAtiva,
+  .itemCorBox:hover .thumbCor {
+    border-color: var(--accent);
+  }
+  
+  .imgCor {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+  
+  .nomeCor {
+    font-size: var(--fs-sm); 
+    color: var(--ink-soft);
+    text-align: center;
+    line-height: 1.2;
+    width: 100%;
+  }
+  
+  .nomeCorAtiva {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  
+  .boxDisponibilidade {
+    margin-top: 30px;
+    padding: 14px 16px;
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--fs-sm);
+    color: var(--ink-soft);
+  }
+  
+  .badgeEstoque {
+    font-weight: 600;
+    color: #1f6b52;
+    background-color: #e3f3ec;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: var(--fs-xs);
+  }
+  
+  .badgeEsgotado {
+    font-weight: 600;
+    color: #b91c1c;
+    background-color: #fee2e2;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: var(--fs-xs);
+  }
+  
+  /* ---------- RESPONSIVO ---------- */
+  @media (max-width: 900px) {
+    .container {
+      padding: 16px 16px 56px;
+    }
+    .gridProduto {
+      grid-template-columns: 1fr;
+    }
+    .colunaMiniaturas {
+      order: 2;
+      flex-direction: row;
+    }
+    .listaMiniaturas {
+      flex-direction: row;
+      overflow-x: auto;
+    }
+    .setaVertical {
+      display: none;
+    }
+    .colunaPrincipal {
+      order: 1;
+    }
+    .colunaInfo {
+      order: 3;
+      padding-left: 0;
+    }
+    .tituloProduto {
+      font-size: 1.375rem;
+    }
+  }

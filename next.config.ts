@@ -1,19 +1,13 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  experimental: {
-    agentFeedback: true,
-  },
-  cacheComponents: true,
-  partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'pub-5e6f060ff62c49fcb787dafead8bd8dd.r2.dev',
       },
-    },
+    ],
   },
 };
 
