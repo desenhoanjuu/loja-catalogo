@@ -153,8 +153,16 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       const pasta = acharPastaDaCor(nomeCor, pp.pastas)
       if (pasta) ordenarFotos(pp.fotos[pasta]).forEach((a) => achadas.push({ arquivo: a, url: url(pp.ref, a), peca }))
     })
+    // Amostra de cor (tecido) só uma vez, mesmo que as duas peças tenham a sua
+    let temAmostra = false
     return achadas
       .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .filter((f) => {
+        if (tipoDaFoto(f.arquivo) !== 3) return true
+        if (temAmostra) return false
+        temAmostra = true
+        return true
+      })
       .map((f) => f.url)
   }
 
@@ -226,8 +234,16 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       const pasta = acharPastaDaCor(nomeCor, pp.pastas)
       if (pasta) ordenarFotos(pp.fotos[pasta]).forEach((a) => achadas.push({ arquivo: a, url: url(pp.ref, a), peca }))
     })
+    // Amostra de cor (tecido) só uma vez, mesmo que as duas peças tenham a sua
+    let temAmostra = false
     return achadas
       .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .filter((f) => {
+        if (tipoDaFoto(f.arquivo) !== 3) return true
+        if (temAmostra) return false
+        temAmostra = true
+        return true
+      })
       .map((f) => f.url)
   }
 
