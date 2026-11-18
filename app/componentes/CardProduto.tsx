@@ -27,7 +27,8 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjun
       href={ehConjunto && conjuntoInfo ? `/conjunto/${conjuntoInfo.id}` : `/produto/${produto.referencia}`}
       className={styles.card}
     >
-      <div className={styles.cardImagemWrapper}>
+      {/* 4:5, a mesma proporção do recorte das fotos: a foto preenche o card sem cortar */}
+      <div className={styles.cardImagemWrapper} style={{ aspectRatio: '4 / 5' }}>
         {capa ? (
           <>
             <ImagemAjustavel

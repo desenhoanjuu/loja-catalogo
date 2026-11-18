@@ -145,8 +145,8 @@
   .wrapperFotoPrincipal {
     position: relative;
     width: 100%;
-    aspect-ratio: 2 / 3;
-    max-height: 680px;
+    aspect-ratio: 4 / 5; /* o componente ajusta conforme a foto */
+    max-height: 760px;
     background-color: var(--photo-bg);
     border-radius: 4px;
     overflow: hidden;

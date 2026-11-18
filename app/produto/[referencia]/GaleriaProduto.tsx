@@ -322,6 +322,12 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
 
   const [chaveSelecionada, setChaveSelecionada] = useState<string | null>(corInicial?.chave ?? null)
   const [indiceFoto, setIndiceFoto] = useState(0)
+  // Proporção do quadro da foto principal: segue a foto (as suas são 4:5). Amostra de cor
+  // (quadrada) não muda o quadro, para a página não "pular" ao passar as fotos.
+  const [proporcaoQuadro, setProporcaoQuadro] = useState(0.8)
+  const ajustarQuadro = (p: number) => {
+    if (p < 0.9) setProporcaoQuadro(Math.min(0.85, Math.max(0.6, p)))
+  }
 
   const corAtual = cores.find((c) => c.chave === chaveSelecionada) || null
   const fotos = corAtual?.fotos ?? []
@@ -382,7 +388,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
 
       {/* COLUNA 2: Foto principal */}
       <div className={styles.colunaPrincipal}>
-        <div className={styles.wrapperFotoPrincipal}>
+        <div className={styles.wrapperFotoPrincipal} style={{ aspectRatio: String(proporcaoQuadro) }}>
           {fotos.length > 1 && (
             <button type="button" onClick={fotoAnterior} className={`${styles.setaLateral} ${styles.setaEsquerda}`} aria-label="Foto anterior">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
@@ -390,7 +396,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
           )}
 
           {fotoPrincipal ? (
-            <ImagemAjustavel src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={`${styles.imgPrincipal} ${ehAmostra ? styles.imgAmostra : ''}`} />
+            <ImagemAjustavel onMedida={ajustarQuadro} src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={`${styles.imgPrincipal} ${ehAmostra ? styles.imgAmostra : ''}`} />
           ) : (
             <span style={{ color: 'var(--ink-muted)', fontSize: '14px' }}>Sem foto para esta cor</span>
           )}

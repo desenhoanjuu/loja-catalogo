@@ -2,18 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-type Props = React.ImgHTMLAttributes<HTMLImageElement> & { src: string }
+type Props = React.ImgHTMLAttributes<HTMLImageElement> & {
+  src: string
+  onMedida?: (proporcao: number) => void // largura ÷ altura da foto, assim que ela carrega
+}
 
 // Imagem que, se for quadrada (ex.: amostra de cor 1x1), cresce para preencher o quadro.
 // Fotos de modelo (verticais) continuam inteiras, sem corte.
-export default function ImagemAjustavel({ src, style, alt = '', ...resto }: Props) {
+export default function ImagemAjustavel({ src, style, alt = '', onMedida, ...resto }: Props) {
   const ref = useRef<HTMLImageElement>(null)
   const [quadrada, setQuadrada] = useState(false)
 
   const medir = () => {
     const img = ref.current
     if (img && img.naturalWidth && img.naturalHeight) {
-      setQuadrada(img.naturalWidth / img.naturalHeight >= 0.9)
+      const proporcao = img.naturalWidth / img.naturalHeight
+      setQuadrada(proporcao >= 0.9)
+      onMedida?.(proporcao)
     }
   }
 
