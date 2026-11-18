@@ -255,6 +255,8 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
     const mapa = new Map<string, CorExibida>()
     pecas.forEach((p) =>
       (p.caixas || [])
+        // Caixa de verdade é letra (A, B, TA...); número no lugar da letra é erro de cadastro
+        .filter((cx) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
         .filter((cx) => incluirEsgotadas || !cx.esgotada || cx.estoque > 0)
         .forEach((cx) => {
           const id = `${cx.pecas}${cx.caixa}`
