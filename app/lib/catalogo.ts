@@ -28,6 +28,15 @@ export interface EstruturaCatalogo {
 export type Produto = Record<string, any>
 
 // ==========================================
+// VISIBILIDADE
+// O site só mostra o que foi autorizado no painel (ativo) e não está esgotado no ERP.
+// Todas as consultas de produtos usam .eq('ativo', true).not('esgotado_erp', 'is', true).
+// ==========================================
+export function ehVisivelNoSite(p: Produto | null | undefined): boolean {
+  return !!p && p.ativo === true && p.esgotado_erp !== true
+}
+
+// ==========================================
 // MARCAS
 // ==========================================
 export function normalizarMarca(marca?: string | null): string {
@@ -220,6 +229,7 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
       .from('produtos')
       .select('departamento, grupo, colecao, campanha, tipo_peca')
       .eq('ativo', true)
+      .not('esgotado_erp', 'is', true)
       .order('referencia')
       .range(inicio, inicio + passo - 1)
     if (!ehTodos) q = q.eq('marca', marca)
@@ -284,6 +294,7 @@ export async function buscarSimilares(
       .from('produtos')
       .select('*')
       .eq('ativo', true)
+      .not('esgotado_erp', 'is', true)
       .neq('referencia', produto.referencia)
       .limit(120)
 
@@ -410,6 +421,7 @@ export async function agruparConjuntos(produtos: Produto[]): Promise<ItemVitrine
       .from('produtos')
       .select('*')
       .eq('ativo', true)
+      .not('esgotado_erp', 'is', true)
       .in('referencia', Array.from(faltando))
     data?.forEach((p) => porRef.set(p.referencia, p))
   }
@@ -441,7 +453,8 @@ export async function buscarProdutosVitrine(marca: string, params: Params): Prom
   const busca = params.q ? limparBusca(params.q) : ''
 
   const montar = () => {
-    let q = supabase.from('produtos').select('*').eq('ativo', true).order('referencia', { ascending: false })
+    let q = supabase.from('produtos').select('*').eq('ativo', true)
+      .not('esgotado_erp', 'is', true).order('referencia', { ascending: false })
     if (marca !== 'TODOS') q = q.eq('marca', marca)
     if (params.colecao) q = q.eq('colecao', params.colecao)
     if (params.campanha) q = q.eq('campanha', params.campanha)

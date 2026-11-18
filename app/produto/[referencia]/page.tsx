@@ -11,6 +11,7 @@ import {
   supabase,
   buscarConjuntoDaReferencia,
   buscarSimilares,
+  ehVisivelNoSite,
   carregarEstrutura,
   montarUrlFiltro,
   normalizarMarca,
@@ -26,11 +27,14 @@ export default async function PaginaProduto({
   const { referencia } = await params
   const r2BaseUrl = process.env.NEXT_PUBLIC_R2_URL || ''
 
-  const { data: produto } = await supabase
+  const { data: encontrado } = await supabase
     .from('produtos')
     .select('*')
     .eq('referencia', referencia)
-    .single()
+    .maybeSingle()
+
+  // Referência não autorizada no painel (ou esgotada no ERP) não abre, nem pelo link direto
+  const produto = ehVisivelNoSite(encontrado) ? encontrado : null
 
   // Se a referência faz parte de um conjunto, carrega as outras peças (na ordem do cadastro)
   let pecasProduto: Produto[] = produto ? [produto] : []
@@ -41,7 +45,7 @@ export default async function PaginaProduto({
       const porRef = new Map((membros || []).map((m) => [m.referencia, m]))
       const ordenadas = refsConjunto
         .map((r) => porRef.get(r))
-        .filter((m): m is Produto => !!m && (m.ativo || m.referencia === produto.referencia))
+        .filter((m): m is Produto => ehVisivelNoSite(m))
       if (ordenadas.length > 1) pecasProduto = ordenadas
     }
   }
@@ -86,7 +90,7 @@ export default async function PaginaProduto({
           <div className={styles.conteudoProduto}>
             {!produto ? (
               <div className={vitrine.vazio}>
-                Referência {referencia} não encontrada.{' '}
+                Referência {referencia} não está disponível no catálogo.{' '}
                 <Link href="/" className={vitrine.limparFiltro}>
                   Voltar ao catálogo
                 </Link>
