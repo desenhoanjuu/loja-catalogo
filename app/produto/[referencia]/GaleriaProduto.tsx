@@ -159,8 +159,15 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
     })
     // Amostra de cor (tecido) só uma vez, mesmo que as duas peças tenham a sua
     let temAmostra = false
+    // Agrupa por peça (todas as fotos da blusa, depois todas da saia); amostra de cor no fim
+    const ehAmostra = (arquivo: string) => (tipoDaFoto(arquivo) === 3 ? 1 : 0)
     return achadas
-      .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .sort(
+        (a, b) =>
+          ehAmostra(a.arquivo) - ehAmostra(b.arquivo) ||
+          a.peca - b.peca ||
+          tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo)
+      )
       .filter((f) => {
         if (tipoDaFoto(f.arquivo) !== 3) return true
         if (temAmostra) return false
@@ -240,8 +247,15 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
     })
     // Amostra de cor (tecido) só uma vez, mesmo que as duas peças tenham a sua
     let temAmostra = false
+    // Agrupa por peça (todas as fotos da blusa, depois todas da saia); amostra de cor no fim
+    const ehAmostra = (arquivo: string) => (tipoDaFoto(arquivo) === 3 ? 1 : 0)
     return achadas
-      .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .sort(
+        (a, b) =>
+          ehAmostra(a.arquivo) - ehAmostra(b.arquivo) ||
+          a.peca - b.peca ||
+          tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo)
+      )
       .filter((f) => {
         if (tipoDaFoto(f.arquivo) !== 3) return true
         if (temAmostra) return false
