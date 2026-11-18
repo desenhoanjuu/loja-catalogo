@@ -82,7 +82,11 @@ export function tipoDaFoto(arquivo: string): number {
     .filter(Boolean)
   if (tokens.includes('frente')) return 0
   if (tokens.includes('costas') || tokens.includes('verso')) return 1
-  if (tokens.some((t) => OUTROS_ANGULOS.includes(t) || /^\d+$/.test(t))) return 2
+  if (tokens.some((t) => OUTROS_ANGULOS.includes(t))) return 2
+  // Foto numerada (ex.: "VERDE_1"): número curto separado por "_". Números do nome da cor
+  // ("print-373-1") e o código da referência ("430672_...") não contam.
+  const partes = arquivo.replace(/\.[^.]+$/, '').split('_')
+  if (partes.some((p) => /^\d{1,3}$/.test(p.trim()))) return 2
   return 3
 }
 

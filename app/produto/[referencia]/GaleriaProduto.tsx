@@ -85,7 +85,11 @@ function tipoDaFoto(arquivo: string): number {
     .filter(Boolean)
   if (tokens.includes('frente')) return 0
   if (tokens.includes('costas') || tokens.includes('verso')) return 1
-  if (tokens.some((t) => OUTROS_ANGULOS.includes(t) || /^\d+$/.test(t))) return 2
+  if (tokens.some((t) => OUTROS_ANGULOS.includes(t))) return 2
+  // Foto numerada (ex.: "VERDE_1"): número curto separado por "_". Números do nome da cor
+  // ("print-373-1") e o código da referência ("430672_...") não contam.
+  const partes = arquivo.replace(/\.[^.]+$/, '').split('_')
+  if (partes.some((p) => /^\d{1,3}$/.test(p.trim()))) return 2
   return 3
 }
 
@@ -289,6 +293,8 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
   // Fotos do conjunto (peças juntas) vêm primeiro. Foto sem cor vale para todas as opções.
   const cores = coresBase.map((c) => {
     const doConjunto = fotosConjunto
+      // Amostra de cor vem das peças; se alguma foi copiada para o conjunto, não repete
+      .filter((f) => tipoDaFoto(decodeURIComponent(f.url.split('/').pop() || '')) !== 3)
       .filter((f) => {
         if (!f.cor) return true
         const n = normalizar(f.cor)
