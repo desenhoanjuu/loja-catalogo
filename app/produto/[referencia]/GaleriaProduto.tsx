@@ -15,6 +15,16 @@ export interface Peca {
   caixasPorCor: Record<string, string>
   estoquePorCor: Record<string, number>
   corCapa?: string | null // cor escolhida no painel para a vitrine (abre a página nela)
+  caixas?: Caixa[] | null // caixas reais do ERP (uma caixa pode ter mais de uma cor)
+}
+
+// Uma caixa do ERP, ex.: CX-22D com Print 416-1 + Print 416-2
+export interface Caixa {
+  caixa: string // letra: A, B, C...
+  pecas: number // peças por caixa
+  cores: string[]
+  estoque: number
+  esgotada: boolean
 }
 
 interface GaleriaProps {
@@ -27,10 +37,14 @@ interface InfoPecaNaCor {
   estoque: number
 }
 
+// Uma opção do seletor: uma caixa (modo novo) ou uma cor (dados antigos)
 interface CorExibida {
   chave: string
   nome: string
   fotos: string[] // URLs completas
+  capas: string[] // miniatura de cada cor da caixa (2 cores = miniatura dividida)
+  cores: string[] // cores normalizadas, para achar a cor escolhida no painel
+  pecasPorCaixa?: number
   porPeca: Record<string, InfoPecaNaCor> // vazio = sem dado da API (produto ainda não sincronizado)
 }
 
@@ -108,7 +122,13 @@ function acharPastaDaCor(corApi: string, pastas: string[]): string | null {
     const n = normalizar(p)
     return n.startsWith(alvo) || alvo.startsWith(n)
   })
-  return parecida || null
+  if (parecida) return parecida
+  // Ex.: pasta "416-1" para a cor "PRINT:416-1"
+  const final = pastas.find((p) => {
+    const n = normalizar(p)
+    return n.length >= 3 && (alvo.endsWith(n) || n.endsWith(alvo))
+  })
+  return final || null
 }
 
 function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
@@ -146,7 +166,8 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       if (!chave) return
       let item = mapa.get(chave)
       if (!item) {
-        item = { chave, nome: formatarNome(cor), fotos: fotosDaCor(cor), porPeca: {} }
+        const fotosCor = fotosDaCor(cor)
+        item = { chave, nome: formatarNome(cor), fotos: fotosCor, capas: fotosCor.slice(0, 1), cores: [chave], porPeca: {} }
         mapa.set(chave, item)
       }
       item.porPeca[p.referencia] = { caixa: caixas[cor] ?? null, estoque: estoques[cor] ?? 0 }
@@ -164,10 +185,13 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
     pp.pastas.forEach((pasta) => {
       const chave = normalizar(pasta)
       if (porPasta.has(chave)) return
+      const fotosPasta = ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a))
       porPasta.set(chave, {
         chave,
         nome: formatarNome(pasta),
-        fotos: ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a)),
+        fotos: fotosPasta,
+        capas: fotosPasta.slice(0, 1),
+        cores: [chave],
         porPeca: {},
       })
     })
@@ -175,21 +199,79 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
   return Array.from(porPasta.values())
 }
 
+// Modo caixas: cada opção é uma caixa do ERP. No conjunto, caixas com a mesma letra se juntam
+// (ex.: Caixa A da blusa + Caixa A da calça).
+function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
+  const url = (ref: string, arquivo: string) => `${r2BaseUrl}/${ref}/${encodeURIComponent(arquivo)}`
+  const ehConjunto = pecas.length > 1
+
+  const pastasPorPeca = pecas.map((p) => {
+    const fotos = p.fotosPorCor || {}
+    return {
+      ref: p.referencia,
+      fotos,
+      pastas: Object.keys(fotos).filter((k) => !ehPastaDeAngulo(k) && (fotos[k]?.length ?? 0) > 0),
+    }
+  })
+  const fotosDaCor = (nomeCor: string): string[] => {
+    for (const pp of pastasPorPeca) {
+      const pasta = acharPastaDaCor(nomeCor, pp.pastas)
+      if (pasta) return ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a))
+    }
+    return []
+  }
+
+  const montar = (incluirEsgotadas: boolean) => {
+    const mapa = new Map<string, CorExibida>()
+    pecas.forEach((p) =>
+      (p.caixas || [])
+        .filter((cx) => incluirEsgotadas || !cx.esgotada || cx.estoque > 0)
+        .forEach((cx) => {
+          const id = `${cx.pecas}${cx.caixa}`
+          const chave = ehConjunto ? normalizar(cx.caixa) : normalizar(id)
+          let item = mapa.get(chave)
+          if (!item) {
+            const fotosPorCor = cx.cores.map((c) => fotosDaCor(c))
+            item = {
+              chave,
+              nome: cx.cores.map((c) => formatarNome(c)).join(' + ') || `Caixa ${cx.caixa}`,
+              fotos: Array.from(new Set(fotosPorCor.flat())),
+              capas: fotosPorCor.map((f) => f[0]).filter(Boolean),
+              cores: cx.cores.map((c) => normalizar(c)),
+              pecasPorCaixa: cx.pecas,
+              porPeca: {},
+            }
+            mapa.set(chave, item)
+          }
+          item.porPeca[p.referencia] = { caixa: id, estoque: cx.estoque }
+        })
+    )
+    return Array.from(mapa.values())
+  }
+
+  // Caixas esgotadas no ERP ficam de fora; se todas estiverem esgotadas, mostra todas como "Esgotado"
+  const disponiveis = montar(false)
+  return disponiveis.length > 0 ? disponiveis : montar(true)
+}
+
 export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
   const principal = pecas[0]
   const ehConjunto = pecas.length > 1
-  const cores = montarCores(pecas, r2BaseUrl)
+  const modoCaixas = pecas.some((p) => Array.isArray(p.caixas) && p.caixas.length > 0)
+  const cores = modoCaixas ? montarCaixas(pecas, r2BaseUrl) : montarCores(pecas, r2BaseUrl)
 
   const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
-  // Abre na cor escolhida no painel; senão, numa cor com foto e estoque, evitando preto/branco
-  const corDoPainel = pecas
-    .map((p) => (p.corCapa ? normalizar(p.corCapa) : ''))
-    .find((c) => c && cores.some((x) => x.chave === c || x.chave.startsWith(c) || c.startsWith(x.chave)))
+  const temCorNeutra = (c: CorExibida) => c.cores.length > 0 && c.cores.every((x) => ehCorNeutra(x))
+  const combina = (a: string, b: string) => a === b || a.startsWith(b) || b.startsWith(a)
+
+  // Abre na cor escolhida no painel; senão, numa opção com foto e estoque, evitando preto/branco
+  const corDoPainel = pecas.map((p) => (p.corCapa ? normalizar(p.corCapa) : '')).find(Boolean) || ''
   const corInicial =
-    (corDoPainel && cores.find((c) => c.chave === corDoPainel || c.chave.startsWith(corDoPainel) || corDoPainel.startsWith(c.chave))) ||
-    cores.find((c) => c.fotos.length > 0 && temEstoque(c) && !ehCorNeutra(c.nome)) ||
+    (corDoPainel && cores.find((c) => temEstoque(c) && c.cores.some((x) => combina(x, corDoPainel)))) ||
+    (corDoPainel && cores.find((c) => c.cores.some((x) => combina(x, corDoPainel)))) ||
+    cores.find((c) => c.fotos.length > 0 && temEstoque(c) && !temCorNeutra(c)) ||
     cores.find((c) => c.fotos.length > 0 && temEstoque(c)) ||
-    cores.find((c) => c.fotos.length > 0 && !ehCorNeutra(c.nome)) ||
+    cores.find((c) => c.fotos.length > 0 && !temCorNeutra(c)) ||
     cores.find((c) => c.fotos.length > 0) ||
     cores[0]
 
@@ -333,13 +415,14 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
         {cores.length > 0 && (
           <div>
             <p className={styles.labelCor}>
-              Cor: <strong>{corAtual?.nome}</strong>
+              {modoCaixas ? 'Caixa' : 'Cor'}: <strong>{corAtual?.nome}</strong>
+              {modoCaixas && corAtual?.pecasPorCaixa ? ` · ${corAtual.pecasPorCaixa} peças por caixa` : ''}
             </p>
 
             <div className={styles.gridCores}>
               {cores.map((cor) => {
                 const selecionada = cor.chave === chaveSelecionada
-                const capa = cor.fotos[0]
+                const capas = cor.capas.length > 0 ? cor.capas.slice(0, 2) : cor.fotos.slice(0, 1)
                 const caixa = Object.values(cor.porPeca).find((i) => i.caixa)?.caixa ?? null
 
                 return (
@@ -351,8 +434,15 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
                     <span className={styles.nomeCaixaTopo}>{caixa ? `CX-${caixa}` : '\u00A0'}</span>
 
                     <div className={`${styles.thumbCor} ${selecionada ? styles.thumbCorAtiva : ''}`}>
-                      {capa ? (
-                        <img src={capa} alt={cor.nome} className={styles.imgCor} />
+                      {capas.length > 1 ? (
+                        // Caixa com 2 cores: miniatura dividida ao meio
+                        <div className={styles.thumbDividida}>
+                          {capas.map((c) => (
+                            <img key={c} src={c} alt="" className={styles.imgCor} />
+                          ))}
+                        </div>
+                      ) : capas.length === 1 ? (
+                        <img src={capas[0]} alt={cor.nome} className={styles.imgCor} />
                       ) : (
                         <span className={styles.semFotoCor}>Sem foto</span>
                       )}
@@ -377,7 +467,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
                     Disponibilidade: <strong>{rotulo} {info?.caixa ? `(CX-${info.caixa})` : ''}</strong>
                   </span>
                   {!info ? (
-                    <span className={styles.badgeEsgotado}>Não tem nesta cor</span>
+                    <span className={styles.badgeEsgotado}>{modoCaixas ? 'Não tem esta caixa' : 'Não tem nesta cor'}</span>
                   ) : (
                     <span className={info.estoque > 0 ? styles.badgeEstoque : styles.badgeEsgotado}>
                       {info.estoque > 0 ? `${info.estoque} cxs.` : 'Esgotado'}
