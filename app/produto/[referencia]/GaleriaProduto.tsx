@@ -281,6 +281,9 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
   const corAtual = cores.find((c) => c.chave === chaveSelecionada) || null
   const fotos = corAtual?.fotos ?? []
   const fotoPrincipal = fotos.length > 0 ? fotos[indiceFoto] || fotos[0] : null
+  // Amostra de cor (foto quadrada do tecido): preenche o quadro inteiro em vez de ficar com sobra
+  const nomeArquivo = (url: string) => decodeURIComponent(url.split('/').pop() || '')
+  const ehAmostra = !!fotoPrincipal && tipoDaFoto(nomeArquivo(fotoPrincipal)) === 3
 
   const tituloExibicao = ehConjunto
     ? `Conjunto ${pecas.map((p) => formatarNome(String(p.tipoPeca || '').split(' ')[0]) || 'Peça').join(' + ')}`
@@ -342,7 +345,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
           )}
 
           {fotoPrincipal ? (
-            <img src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={styles.imgPrincipal} />
+            <img src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={`${styles.imgPrincipal} ${ehAmostra ? styles.imgAmostra : ''}`} />
           ) : (
             <span style={{ color: 'var(--ink-muted)', fontSize: '14px' }}>Sem foto para esta cor</span>
           )}

@@ -14,7 +14,7 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Prop
   const ehConjunto = !!conjunto && conjunto.length > 1
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
-  const { capa, hover, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl)
+  const { capa, hover, qualidade, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl)
   const totalCores = pastasDeCor(pecaComFoto.fotos).length
   const titulo = produto.descricao || `Referência ${produto.referencia}`
   const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade
@@ -29,6 +29,8 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Prop
               src={capa}
               alt={ehConjunto ? `Conjunto ${conjunto!.map(rotuloPeca).join(' e ')}` : titulo}
               className={`${styles.cardImagem} ${!hover ? styles.cardImagemUnica : ''}`}
+              // Só amostra de cor: preenche o card em vez de ficar um quadrado com sobra
+              style={qualidade === 3 ? { objectFit: 'cover', objectPosition: 'center' } : undefined}
             />
             {hover && <img src={hover} alt="" className={styles.cardImagemHover} />}
           </>

@@ -162,6 +162,12 @@
     object-position: top center;
     display: block;
   }
+
+  /* Amostra de cor (imagem 1x1 do tecido): cresce até preencher o quadro */
+  .imgAmostra {
+    object-fit: cover;
+    object-position: center;
+  }
   
   .setaLateral {
     position: absolute;
