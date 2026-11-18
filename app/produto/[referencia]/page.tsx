@@ -1,21 +1,24 @@
 import Link from 'next/link'
-import GaleriaProduto, { Peca } from './GaleriaProduto'
+import GaleriaProduto from './GaleriaProduto'
 import CabecalhoLoja from '../../componentes/CabecalhoLoja'
 import FiltrosLaterais from '../../componentes/FiltrosLaterais'
 import CardProduto from '../../componentes/CardProduto'
 import vitrine from '../../Vitrine.module.css'
 import styles from './GaleriaProduto.module.css'
 import {
+  Conjunto,
   Params,
   Produto,
   supabase,
   buscarConjuntoDaReferencia,
+  pecasDoConjunto,
   buscarSimilares,
   ehVisivelNoSite,
   carregarEstrutura,
   montarUrlFiltro,
   normalizarMarca,
 } from '../../lib/catalogo'
+import { produtoParaPeca } from '../../lib/pecas'
 
 export const revalidate = 0
 
@@ -36,33 +39,16 @@ export default async function PaginaProduto({
   // Referência não autorizada no painel (ou esgotada no ERP) não abre, nem pelo link direto
   const produto = ehVisivelNoSite(encontrado) ? encontrado : null
 
-  // Se a referência faz parte de um conjunto, carrega as outras peças (na ordem do cadastro)
-  let pecasProduto: Produto[] = produto ? [produto] : []
+  // A página da peça mostra só a peça. Se ela faz parte de um conjunto, o conjunto aparece abaixo.
+  let conjunto: Conjunto | null = null
+  let pecasConjunto: Produto[] = []
   if (produto) {
-    const refsConjunto = await buscarConjuntoDaReferencia(produto.referencia)
-    if (refsConjunto) {
-      const { data: membros } = await supabase.from('produtos').select('*').in('referencia', refsConjunto)
-      const porRef = new Map((membros || []).map((m) => [m.referencia, m]))
-      const ordenadas = refsConjunto
-        .map((r) => porRef.get(r))
-        .filter((m): m is Produto => ehVisivelNoSite(m))
-      if (ordenadas.length > 1) pecasProduto = ordenadas
+    conjunto = await buscarConjuntoDaReferencia(produto.referencia)
+    if (conjunto) {
+      pecasConjunto = await pecasDoConjunto(conjunto)
+      if (pecasConjunto.length < 2) conjunto = null
     }
   }
-
-  const pecas: Peca[] = pecasProduto.map((p) => ({
-    referencia: p.referencia,
-    descricao: p.descricao || `Referência ${p.referencia}`,
-    marca: p.marca,
-    tipoPeca: p.tipo_peca,
-    grade: p.grade,
-    composicao: p.composicao,
-    fotosPorCor: p.fotos || {},
-    caixasPorCor: p.caixas_por_cor || {},
-    estoquePorCor: p.estoque_por_cor || {},
-    corCapa: p.cor_capa || null,
-    caixas: Array.isArray(p.caixas) ? p.caixas : null,
-  }))
 
   // A aba ativa no cabeçalho é a marca do produto
   const marca = normalizarMarca(produto?.marca)
@@ -70,7 +56,7 @@ export default async function PaginaProduto({
 
   const [estrutura, similares] = await Promise.all([
     carregarEstrutura(marca),
-    produto ? buscarSimilares(produto, 8, pecasProduto.map((p) => p.referencia)) : Promise.resolve([]),
+    produto ? buscarSimilares(produto, 8, pecasConjunto.map((p) => p.referencia)) : Promise.resolve([]),
   ])
 
   return (
@@ -124,7 +110,21 @@ export default async function PaginaProduto({
                   <span className={styles.breadcrumbAtual}>Ref. {produto.referencia}</span>
                 </nav>
 
-                <GaleriaProduto pecas={pecas} r2BaseUrl={r2BaseUrl} />
+                <GaleriaProduto pecas={[produtoParaPeca(produto)]} r2BaseUrl={r2BaseUrl} />
+
+                {conjunto && (
+                  <section className={styles.similares}>
+                    <h2 className={styles.tituloSimilares}>Também vendido em conjunto</h2>
+                    <div className={styles.gridSimilares}>
+                      <CardProduto
+                        produto={pecasConjunto[0]}
+                        conjunto={pecasConjunto}
+                        conjuntoInfo={conjunto}
+                        r2BaseUrl={r2BaseUrl}
+                      />
+                    </div>
+                  </section>
+                )}
 
                 {similares.length > 0 && (
                   <section className={styles.similares}>

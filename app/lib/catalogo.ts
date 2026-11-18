@@ -173,8 +173,29 @@ export function escolherCapa(
   return { capa: url(escolhida.lista[0]), hover: null, qualidade: 3, manual: ehManual }
 }
 
-// Num conjunto, a capa vem da peça com a cor escolhida no painel ou da peça com a melhor foto
-export function capaDoItem(pecas: Produto[], r2BaseUrl: string): CapaCard & { peca: Produto } {
+export function urlFotoConjunto(r2BaseUrl: string, conjuntoId: string, arquivo: string) {
+  return `${r2BaseUrl}/conjuntos/${conjuntoId}/${encodeURIComponent(arquivo)}`
+}
+
+// Capa do card. Conjunto com fotos próprias usa essas fotos; senão, a peça com a cor escolhida
+// no painel ou a peça com a melhor foto.
+export function capaDoItem(
+  pecas: Produto[],
+  r2BaseUrl: string,
+  conjunto?: Conjunto | null
+): CapaCard & { peca: Produto } {
+  if (conjunto && conjunto.fotos.length > 0) {
+    const lista = [...conjunto.fotos].sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo))
+    const costas = lista.find((f) => tipoDaFoto(f.arquivo) === 1)
+    const capa = lista.find((f) => f !== costas) || lista[0]
+    return {
+      peca: pecas[0],
+      capa: urlFotoConjunto(r2BaseUrl, conjunto.id, capa.arquivo),
+      hover: costas && costas !== capa ? urlFotoConjunto(r2BaseUrl, conjunto.id, costas.arquivo) : null,
+      qualidade: costas && costas !== capa ? 0 : 1,
+      manual: false,
+    }
+  }
   const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa) }))
   return opcoes.find((o) => o.manual) || [...opcoes].sort((a, b) => a.qualidade - b.qualidade)[0]
 }
@@ -359,33 +380,67 @@ export async function buscarSimilares(
 // ==========================================
 // CONJUNTOS (ex.: Blusa 830697 + Calça 830699)
 // ==========================================
+export interface FotoConjunto {
+  arquivo: string // arquivo em conjuntos/<id>/ no Cloudflare
+  cor?: string | null // cor das peças na foto (vazio = vale para todas)
+}
+
 export interface Conjunto {
   id: string
   referencias: string[]
+  fotos: FotoConjunto[]
+  ordem: number | null // posição manual na seção Conjuntos
+}
+
+function lerConjunto(c: Produto): Conjunto {
+  return {
+    id: String(c.id),
+    referencias: (c.referencias || []).map(String),
+    fotos: Array.isArray(c.fotos) ? c.fotos.filter((f: FotoConjunto) => f && f.arquivo) : [],
+    ordem: typeof c.ordem === 'number' ? c.ordem : null,
+  }
 }
 
 // Lê os conjuntos cadastrados no painel. Se a tabela ainda não existir, o site segue normal.
 export async function carregarConjuntos(): Promise<Conjunto[]> {
-  const { data, error } = await supabase.from('conjuntos').select('id, referencias')
+  // Mesma ordem do painel (data de criação), para desempates iguais nos dois
+  const { data, error } = await supabase.from('conjuntos').select('*').order('criado_em')
   if (error) {
     console.error('Erro ao ler conjuntos:', error.message)
     return []
   }
-  return (data || []).map((c) => ({ id: String(c.id), referencias: (c.referencias || []).map(String) }))
+  return (data || []).map(lerConjunto)
 }
 
-export async function buscarConjuntoDaReferencia(referencia: string): Promise<string[] | null> {
+export async function buscarConjunto(id: string): Promise<Conjunto | null> {
+  const { data, error } = await supabase.from('conjuntos').select('*').eq('id', id).maybeSingle()
+  if (error || !data) return null
+  return lerConjunto(data)
+}
+
+export async function buscarConjuntoDaReferencia(referencia: string): Promise<Conjunto | null> {
   const { data, error } = await supabase
     .from('conjuntos')
-    .select('referencias')
+    .select('*')
     .contains('referencias', [referencia])
     .limit(1)
   if (error) {
     console.error('Erro ao ler conjunto:', error.message)
     return null
   }
-  const refs = (data?.[0]?.referencias || []).map(String)
-  return refs.length > 1 ? refs : null
+  return data?.[0] ? lerConjunto(data[0]) : null
+}
+
+// Peças visíveis do conjunto, na ordem do cadastro
+export async function pecasDoConjunto(conjunto: Conjunto): Promise<Produto[]> {
+  const { data } = await supabase
+    .from('produtos')
+    .select('*')
+    .eq('ativo', true)
+    .not('esgotado_erp', 'is', true)
+    .in('referencia', conjunto.referencias)
+  const porRef = new Map((data || []).map((p) => [p.referencia, p]))
+  return conjunto.referencias.map((r) => porRef.get(r)).filter(Boolean) as Produto[]
 }
 
 // "Blusa 830697" — primeira palavra do tipo da peça + referência
@@ -396,53 +451,36 @@ export function rotuloPeca(p: Produto) {
 
 export type ItemVitrine =
   | { tipo: 'produto'; produto: Produto }
-  | { tipo: 'conjunto'; pecas: Produto[] }
+  | { tipo: 'conjunto'; pecas: Produto[]; conjunto: Conjunto }
 
-// Junta as peças de um mesmo conjunto num único card, na posição da primeira que aparecer
-export async function agruparConjuntos(produtos: Produto[]): Promise<ItemVitrine[]> {
+// Conjuntos que têm pelo menos uma peça no resultado da vitrine (e 2+ peças visíveis).
+// As peças continuam aparecendo sozinhas nas seções delas.
+export async function conjuntosDaVitrine(produtos: Produto[]): Promise<ItemVitrine[]> {
   const conjuntos = await carregarConjuntos()
-  if (conjuntos.length === 0) return produtos.map((produto) => ({ tipo: 'produto', produto }))
+  if (conjuntos.length === 0) return []
 
-  const conjuntoDaRef = new Map<string, Conjunto>()
-  conjuntos.forEach((c) => c.referencias.forEach((r) => conjuntoDaRef.set(r, c)))
+  const noResultado = new Set(produtos.map((p) => p.referencia))
+  const usados = conjuntos.filter((c) => c.referencias.some((r) => noResultado.has(r)))
+  if (usados.length === 0) return []
 
   const porRef = new Map<string, Produto>()
   produtos.forEach((p) => porRef.set(p.referencia, p))
-
-  // Peças do conjunto que não vieram no resultado (ex.: filtro só de calças): busca as ativas
-  const faltando = new Set<string>()
-  produtos.forEach((p) => {
-    conjuntoDaRef.get(p.referencia)?.referencias.forEach((r) => {
-      if (!porRef.has(r)) faltando.add(r)
-    })
-  })
-  if (faltando.size > 0) {
+  const faltando = Array.from(new Set(usados.flatMap((c) => c.referencias))).filter((r) => !porRef.has(r))
+  if (faltando.length > 0) {
     const { data } = await supabase
       .from('produtos')
       .select('*')
       .eq('ativo', true)
       .not('esgotado_erp', 'is', true)
-      .in('referencia', Array.from(faltando))
+      .in('referencia', faltando)
     data?.forEach((p) => porRef.set(p.referencia, p))
   }
 
   const itens: ItemVitrine[] = []
-  const conjuntosUsados = new Set<string>()
-
-  produtos.forEach((produto) => {
-    const conjunto = conjuntoDaRef.get(produto.referencia)
-    if (!conjunto) {
-      itens.push({ tipo: 'produto', produto })
-      return
-    }
-    if (conjuntosUsados.has(conjunto.id)) return
-    conjuntosUsados.add(conjunto.id)
-
+  usados.forEach((conjunto) => {
     const pecas = conjunto.referencias.map((r) => porRef.get(r)).filter(Boolean) as Produto[]
-    if (pecas.length > 1) itens.push({ tipo: 'conjunto', pecas })
-    else itens.push({ tipo: 'produto', produto })
+    if (pecas.length > 1) itens.push({ tipo: 'conjunto', pecas, conjunto })
   })
-
   return itens
 }
 
@@ -600,7 +638,11 @@ function compararChaves(a: Chave, b: Chave) {
   return 0
 }
 
-export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean): SecaoVitrine[] {
+export function organizarVitrine(
+  itens: ItemVitrine[],
+  conjuntos: ItemVitrine[],
+  incluirNovidades: boolean
+): SecaoVitrine[] {
   const dados = itens.map((item, indice) => {
     const pecas = pecasDoItem(item)
     const menor = (campo: string) => {
@@ -614,7 +656,7 @@ export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean
       ordemVitrine: menor('ordem_vitrine'),
       ordemNovidades: menor('ordem_novidades'),
       qualidade,
-      natural: chaveNatural(pecas, qualidade, item.tipo === 'conjunto'),
+      natural: chaveNatural(pecas, qualidade, false),
       novidade: pecas.some((p) => p.novidade),
       secao: secaoDoDepartamento(pecas[0].departamento),
     }
@@ -632,6 +674,19 @@ export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean
     const novidades = dados.filter((d) => d.novidade)
     if (novidades.length) secoes.push({ chave: 'novidades', titulo: 'Novidades', itens: ordenar(novidades, 'ordemNovidades') })
   }
+
+  // Seção Conjuntos: ordem do painel; o resto na ordem natural da primeira peça
+  if (conjuntos.length) {
+    const dadosConj = conjuntos.map((item, indice) => {
+      const pecas = pecasDoItem(item)
+      const ordem = item.tipo === 'conjunto' && item.conjunto.ordem !== null ? item.conjunto.ordem : SEM_ORDEM
+      const qualidade = capaDoItem(pecas, '', item.tipo === 'conjunto' ? item.conjunto : null).qualidade
+      return { item, indice, ordem, natural: chaveNatural(pecas, qualidade, true) }
+    })
+    dadosConj.sort((a, b) => a.ordem - b.ordem || compararChaves(a.natural, b.natural) || a.indice - b.indice)
+    secoes.push({ chave: 'conjuntos', titulo: 'Conjuntos', itens: dadosConj.map((d) => d.item) })
+  }
+
   SECOES_VITRINE.forEach(({ chave, titulo }) => {
     const daSecao = dados.filter((d) => d.secao === chave)
     if (daSecao.length) secoes.push({ chave, titulo, itens: ordenar(daSecao, 'ordemVitrine') })

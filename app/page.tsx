@@ -6,9 +6,10 @@ import CardProduto from './componentes/CardProduto'
 import styles from './Vitrine.module.css'
 import secoesCss from './Secoes.module.css'
 import {
+  ItemVitrine,
   Params,
   supabase,
-  agruparConjuntos,
+  conjuntosDaVitrine,
   buscarProdutosVitrine,
   carregarEstrutura,
   montarUrlFiltro,
@@ -41,7 +42,9 @@ export default async function Vitrine({
   ])
 
   const banners = (bannersRaw || []) as BannerItem[]
-  const itens = await agruparConjuntos(produtos)
+  // Peças sempre sozinhas nas seções delas; os conjuntos ganham uma seção própria
+  const itens: ItemVitrine[] = produtos.map((produto) => ({ tipo: 'produto', produto }))
+  const conjuntos = await conjuntosDaVitrine(produtos)
   const configMarcaAtiva = !ehTodos ? estrutura.mapaLogos[marca] : null
 
   const filtrosAtivos: { chave: string; label: string; valor: string }[] = []
@@ -54,7 +57,7 @@ export default async function Vitrine({
   if (params.q) filtrosAtivos.push({ chave: 'q', label: 'Busca', valor: params.q })
 
   // Novidades no topo só na vitrine sem filtros; depois, as seções por departamento
-  const secoes = organizarVitrine(itens, filtrosAtivos.length === 0)
+  const secoes = organizarVitrine(itens, conjuntos, filtrosAtivos.length === 0)
   const mostrarTitulos = secoes.length > 1
 
   return (
@@ -137,9 +140,10 @@ export default async function Vitrine({
                       {secao.itens.map((item) =>
                         item.tipo === 'conjunto' ? (
                           <CardProduto
-                            key={`cj-${item.pecas[0].referencia}`}
+                            key={`cj-${item.conjunto.id}`}
                             produto={item.pecas[0]}
                             conjunto={item.pecas}
+                            conjuntoInfo={item.conjunto}
                             r2BaseUrl={r2BaseUrl}
                           />
                         ) : (

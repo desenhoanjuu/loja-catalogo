@@ -2,27 +2,31 @@ import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
-import { Produto, capaDoItem, pastasDeCor, rotuloPeca } from '../lib/catalogo'
+import { Conjunto, Produto, capaDoItem, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
   produto: Produto
   r2BaseUrl: string
   meta?: string // texto acima do título; padrão é "MARCA • Ref: 123"
   conjunto?: Produto[] // quando o card representa um conjunto (todas as peças, na ordem)
+  conjuntoInfo?: Conjunto // cadastro do conjunto (fotos próprias e link da página do conjunto)
 }
 
-export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Props) {
+export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjuntoInfo }: Props) {
   const ehConjunto = !!conjunto && conjunto.length > 1
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
-  const { capa, hover, qualidade, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl)
+  const { capa, hover, qualidade, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl, ehConjunto ? conjuntoInfo : null)
   const totalCores = pastasDeCor(pecaComFoto.fotos).length
   const titulo = produto.descricao || `Referência ${produto.referencia}`
   const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade
   const colecao = ehConjunto ? conjunto![0].colecao : produto.colecao
 
   return (
-    <Link href={`/produto/${produto.referencia}`} className={styles.card}>
+    <Link
+      href={ehConjunto && conjuntoInfo ? `/conjunto/${conjuntoInfo.id}` : `/produto/${produto.referencia}`}
+      className={styles.card}
+    >
       <div className={styles.cardImagemWrapper}>
         {capa ? (
           <>

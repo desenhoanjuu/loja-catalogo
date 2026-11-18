@@ -31,6 +31,7 @@ export interface Caixa {
 interface GaleriaProps {
   pecas: Peca[]
   r2BaseUrl: string
+  fotosConjunto?: { url: string; cor: string | null }[] // fotos das peças juntas (página do conjunto)
 }
 
 interface InfoPecaNaCor {
@@ -145,12 +146,16 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
   })
 
   // Procura as fotos da cor em cada peça, na ordem (no conjunto a foto costuma estar numa só)
+  // Junta as fotos da cor de TODAS as peças (no conjunto: blusa e saia), frentes primeiro
   const fotosDaCor = (nomeCor: string): string[] => {
-    for (const pp of pastasPorPeca) {
+    const achadas: { arquivo: string; url: string; peca: number }[] = []
+    pastasPorPeca.forEach((pp, peca) => {
       const pasta = acharPastaDaCor(nomeCor, pp.pastas)
-      if (pasta) return ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a))
-    }
-    return []
+      if (pasta) ordenarFotos(pp.fotos[pasta]).forEach((a) => achadas.push({ arquivo: a, url: url(pp.ref, a), peca }))
+    })
+    return achadas
+      .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .map((f) => f.url)
   }
 
   const mapa = new Map<string, CorExibida>()
@@ -214,12 +219,16 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       pastas: Object.keys(fotos).filter((k) => !ehPastaDeAngulo(k) && (fotos[k]?.length ?? 0) > 0),
     }
   })
+  // Junta as fotos da cor de TODAS as peças (no conjunto: blusa e saia), frentes primeiro
   const fotosDaCor = (nomeCor: string): string[] => {
-    for (const pp of pastasPorPeca) {
+    const achadas: { arquivo: string; url: string; peca: number }[] = []
+    pastasPorPeca.forEach((pp, peca) => {
       const pasta = acharPastaDaCor(nomeCor, pp.pastas)
-      if (pasta) return ordenarFotos(pp.fotos[pasta]).map((a) => url(pp.ref, a))
-    }
-    return []
+      if (pasta) ordenarFotos(pp.fotos[pasta]).forEach((a) => achadas.push({ arquivo: a, url: url(pp.ref, a), peca }))
+    })
+    return achadas
+      .sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo) || a.peca - b.peca)
+      .map((f) => f.url)
   }
 
   const montar = (incluirEsgotadas: boolean) => {
@@ -255,11 +264,24 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
   return disponiveis.length > 0 ? disponiveis : montar(true)
 }
 
-export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
+export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }: GaleriaProps) {
   const principal = pecas[0]
   const ehConjunto = pecas.length > 1
   const modoCaixas = pecas.some((p) => Array.isArray(p.caixas) && p.caixas.length > 0)
-  const cores = modoCaixas ? montarCaixas(pecas, r2BaseUrl) : montarCores(pecas, r2BaseUrl)
+  const coresBase = modoCaixas ? montarCaixas(pecas, r2BaseUrl) : montarCores(pecas, r2BaseUrl)
+
+  // Fotos do conjunto (peças juntas) vêm primeiro. Foto sem cor vale para todas as opções.
+  const cores = coresBase.map((c) => {
+    const doConjunto = fotosConjunto
+      .filter((f) => {
+        if (!f.cor) return true
+        const n = normalizar(f.cor)
+        return c.cores.some((x) => x === n || x.startsWith(n) || n.startsWith(x))
+      })
+      .map((f) => f.url)
+    if (doConjunto.length === 0) return c
+    return { ...c, fotos: Array.from(new Set([...doConjunto, ...c.fotos])), capas: [doConjunto[0]] }
+  })
 
   const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
   const temCorNeutra = (c: CorExibida) => c.cores.length > 0 && c.cores.every((x) => ehCorNeutra(x))
