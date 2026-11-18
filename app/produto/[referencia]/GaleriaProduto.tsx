@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import styles from './GaleriaProduto.module.css'
+import ImagemAjustavel from '../../componentes/ImagemAjustavel'
 
 // Uma peça do produto. Produto simples = 1 peça; conjunto = 2 ou mais.
 export interface Peca {
@@ -345,7 +346,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
           )}
 
           {fotoPrincipal ? (
-            <img src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={`${styles.imgPrincipal} ${ehAmostra ? styles.imgAmostra : ''}`} />
+            <ImagemAjustavel src={fotoPrincipal} alt={`${tituloExibicao} - ${corAtual?.nome ?? ''}`} className={`${styles.imgPrincipal} ${ehAmostra ? styles.imgAmostra : ''}`} />
           ) : (
             <span style={{ color: 'var(--ink-muted)', fontSize: '14px' }}>Sem foto para esta cor</span>
           )}

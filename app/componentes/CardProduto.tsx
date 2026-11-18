@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
+import ImagemAjustavel from './ImagemAjustavel'
 import { Produto, capaDoItem, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
@@ -25,7 +26,7 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Prop
       <div className={styles.cardImagemWrapper}>
         {capa ? (
           <>
-            <img
+            <ImagemAjustavel
               src={capa}
               alt={ehConjunto ? `Conjunto ${conjunto!.map(rotuloPeca).join(' e ')}` : titulo}
               className={`${styles.cardImagem} ${!hover ? styles.cardImagemUnica : ''}`}
