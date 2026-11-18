@@ -506,24 +506,38 @@ export function pecasDoItem(item: ItemVitrine): Produto[] {
 const SEM_ORDEM = 1e9
 
 // ---------- Ordem automática "natural" ----------
-// Dentro de cada seção: idade (Baby → Infantil → Juvenil → Adulto), depois menina/feminino antes
-// de menino/masculino, depois tipo de peça (vestidos → macacões → conjuntos → blusas → casacos →
-// saias → shorts → calças) e, dentro do mesmo tipo, peças do mesmo tecido (grupo) juntas.
+// Dentro de cada seção: idade (Baby → Infantil → Juvenil), menina antes de menino,
+// tipo de peça (vestidos → macacões → conjuntos → blusas → regatas → croppeds → tops → bodies →
+// batas → camisas → camisetas → casacos → saias → shorts → calças) e, dentro do tipo, o mesmo tecido junto.
+// Ordem dos tipos de peça. A busca é feita na ordem da lista (a primeira que bater vale),
+// por isso "camiseta" vem antes de "camisa" e "cropped" antes de "blusa".
 const CATEGORIAS_PECA: [RegExp, number][] = [
   [/vestid/, 0],
   [/macac|jardineira/, 1],
   [/conjunt/, 2],
-  [/blus|camis|regat|top|cropp|body|bata|tshirt/, 3],
-  [/casac|jaquet|blaz|colet|cardig|kimon|moletom|sueter/, 4],
-  [/saia/, 5],
-  [/short|bermud/, 6],
-  [/calc|legging|pantalon|jogger/, 7],
+  [/camiset|tshirt/, 10],
+  [/cropp/, 5],
+  [/regat/, 4],
+  [/body/, 7],
+  [/bata/, 8],
+  [/blus/, 3],
+  [/camis/, 9],
+  [/top/, 6],
+  [/casac/, 11],
+  [/jaquet/, 12],
+  [/blaz/, 13],
+  [/colet/, 14],
+  [/cardig|kimon/, 15],
+  [/moletom|sueter/, 16],
+  [/saia/, 17],
+  [/short|bermud/, 18],
+  [/calc|legging|pantalon|jogger/, 19],
 ]
 
 export function categoriaDaPeca(tipo: string | null | undefined): number {
   const n = normalizarTexto(tipo || '')
   const achada = CATEGORIAS_PECA.find(([re]) => re.test(n))
-  return achada ? achada[1] : 8
+  return achada ? achada[1] : 20
 }
 
 function faixaEtaria(n: string) {
@@ -544,17 +558,20 @@ type Chave = (number | string)[]
 export function chaveNatural(pecas: Produto[], qualidade: number, ehConjunto: boolean): Chave {
   const p = pecas[0]
   const dep = normalizarTexto(p.departamento || '')
+  // Se o departamento não diz menina/menino, usa a descrição (ex.: "VESTIDO ... FEM INFANTIL")
+  let genero = generoDep(dep)
+  if (genero === 2) genero = generoDep(normalizarTexto(`${p.descricao || ''} ${p.tipo_peca || ''}`))
   const secao = SECOES_VITRINE.findIndex((x) => x.chave === secaoDoDepartamento(p.departamento))
   return [
     secao, // só faz diferença em Novidades, que reúne todas as seções (Feminino primeiro, Kids por último)
     qualidade >= 3 ? 1 : 0, // sem foto de modelo vai para o fim
     faixaEtaria(dep),
     dep.includes('plus') ? 1 : 0,
-    generoDep(dep),
+    genero,
     dep,
-    ehConjunto ? 2 : categoriaDaPeca(p.tipo_peca),
-    normalizarTexto(p.grupo || ''),
-    normalizarTexto(p.tipo_peca || ''),
+    ehConjunto ? 2 : categoriaDaPeca(p.tipo_peca), // todos os vestidos, depois todas as blusas...
+    normalizarTexto(p.tipo_peca || ''), // dentro do tipo: "vestido curto" juntos, "vestido longo" juntos
+    normalizarTexto(p.grupo || ''), // e, dentro disso, o mesmo tecido junto
     qualidade,
   ]
 }
