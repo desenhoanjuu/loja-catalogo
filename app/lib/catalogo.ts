@@ -505,6 +505,71 @@ export function pecasDoItem(item: ItemVitrine): Produto[] {
 
 const SEM_ORDEM = 1e9
 
+// ---------- Ordem automática "natural" ----------
+// Dentro de cada seção: idade (Baby → Infantil → Juvenil → Adulto), depois menina/feminino antes
+// de menino/masculino, depois tipo de peça (vestidos → macacões → conjuntos → blusas → casacos →
+// saias → shorts → calças) e, dentro do mesmo tipo, peças do mesmo tecido (grupo) juntas.
+const CATEGORIAS_PECA: [RegExp, number][] = [
+  [/vestid/, 0],
+  [/macac|jardineira/, 1],
+  [/conjunt/, 2],
+  [/blus|camis|regat|top|cropp|body|bata|tshirt/, 3],
+  [/casac|jaquet|blaz|colet|cardig|kimon|moletom|sueter/, 4],
+  [/saia/, 5],
+  [/short|bermud/, 6],
+  [/calc|legging|pantalon|jogger/, 7],
+]
+
+export function categoriaDaPeca(tipo: string | null | undefined): number {
+  const n = normalizarTexto(tipo || '')
+  const achada = CATEGORIAS_PECA.find(([re]) => re.test(n))
+  return achada ? achada[1] : 8
+}
+
+function faixaEtaria(n: string) {
+  if (/(baby|bebe)/.test(n)) return 0
+  if (/(infantil|mirim|kids)/.test(n)) return 1
+  if (/(juvenil|teen)/.test(n)) return 2
+  return 3
+}
+
+function generoDep(n: string) {
+  if (/(fem|menina)/.test(n)) return 0
+  if (/(mascul|menino)/.test(n)) return 1
+  return 2
+}
+
+type Chave = (number | string)[]
+
+export function chaveNatural(pecas: Produto[], qualidade: number, ehConjunto: boolean): Chave {
+  const p = pecas[0]
+  const dep = normalizarTexto(p.departamento || '')
+  const secao = SECOES_VITRINE.findIndex((x) => x.chave === secaoDoDepartamento(p.departamento))
+  return [
+    secao, // só faz diferença em Novidades, que reúne todas as seções (Feminino primeiro, Kids por último)
+    qualidade >= 3 ? 1 : 0, // sem foto de modelo vai para o fim
+    faixaEtaria(dep),
+    dep.includes('plus') ? 1 : 0,
+    generoDep(dep),
+    dep,
+    ehConjunto ? 2 : categoriaDaPeca(p.tipo_peca),
+    normalizarTexto(p.grupo || ''),
+    normalizarTexto(p.tipo_peca || ''),
+    qualidade,
+  ]
+}
+
+function compararChaves(a: Chave, b: Chave) {
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (x === y) continue
+    if (typeof x === 'number' && typeof y === 'number') return x - y
+    return String(x) < String(y) ? -1 : 1
+  }
+  return 0
+}
+
 export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean): SecaoVitrine[] {
   const dados = itens.map((item, indice) => {
     const pecas = pecasDoItem(item)
@@ -512,22 +577,24 @@ export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean
       const valores = pecas.map((p) => p[campo]).filter((v) => typeof v === 'number') as number[]
       return valores.length ? Math.min(...valores) : SEM_ORDEM
     }
+    const qualidade = capaDoItem(pecas, '').qualidade
     return {
       item,
       indice,
       ordemVitrine: menor('ordem_vitrine'),
       ordemNovidades: menor('ordem_novidades'),
-      qualidade: capaDoItem(pecas, '').qualidade,
+      qualidade,
+      natural: chaveNatural(pecas, qualidade, item.tipo === 'conjunto'),
       novidade: pecas.some((p) => p.novidade),
       secao: secaoDoDepartamento(pecas[0].departamento),
     }
   })
 
   type Dado = (typeof dados)[number]
-  // Ordem manual primeiro; depois, no automático, quem tem foto de frente e costas vem antes
+  // Ordem manual primeiro; o resto segue a ordem natural (idade, gênero, tipo de peça, tecido)
   const ordenar = (lista: Dado[], campo: 'ordemVitrine' | 'ordemNovidades') =>
     [...lista]
-      .sort((a, b) => a[campo] - b[campo] || a.qualidade - b.qualidade || a.indice - b.indice)
+      .sort((a, b) => a[campo] - b[campo] || compararChaves(a.natural, b.natural) || a.indice - b.indice)
       .map((d) => d.item)
 
   const secoes: SecaoVitrine[] = []
