@@ -56,6 +56,7 @@ export default async function PaginaProduto({
     fotosPorCor: p.fotos || {},
     caixasPorCor: p.caixas_por_cor || {},
     estoquePorCor: p.estoque_por_cor || {},
+    corCapa: p.cor_capa || null,
   }))
 
   // A aba ativa no cabeçalho é a marca do produto

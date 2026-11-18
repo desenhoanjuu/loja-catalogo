@@ -4,13 +4,15 @@ import CabecalhoLoja from './componentes/CabecalhoLoja'
 import FiltrosLaterais from './componentes/FiltrosLaterais'
 import CardProduto from './componentes/CardProduto'
 import styles from './Vitrine.module.css'
+import secoesCss from './Secoes.module.css'
 import {
   Params,
   supabase,
   agruparConjuntos,
+  buscarProdutosVitrine,
   carregarEstrutura,
-  limparBusca,
   montarUrlFiltro,
+  organizarVitrine,
   normalizarMarca,
   urlDaMarca,
 } from './lib/catalogo'
@@ -27,30 +29,7 @@ export default async function Vitrine({
 
   const marca = normalizarMarca(params.marca)
   const ehTodos = marca === 'TODOS'
-  const busca = params.q ? limparBusca(params.q) : ''
-
-  // Consulta de produtos com os filtros da URL
-  let query = supabase
-    .from('produtos')
-    .select('*')
-    .eq('ativo', true)
-    .order('fotos', { ascending: false })
-    .limit(1000)
-
-  if (!ehTodos) query = query.eq('marca', marca)
-  if (params.colecao) query = query.eq('colecao', params.colecao)
-  if (params.campanha) query = query.eq('campanha', params.campanha)
-  if (params.dep) query = query.eq('departamento', params.dep)
-  if (params.grupo) query = query.eq('grupo', params.grupo)
-  if (params.tipo) query = query.eq('tipo_peca', params.tipo)
-  if (params.pe === '1') query = query.gt('estoque_pe', 0)
-  if (busca) {
-    query = query.or(
-      `referencia.ilike.%${busca}%,descricao.ilike.%${busca}%,colecao.ilike.%${busca}%,campanha.ilike.%${busca}%`
-    )
-  }
-
-  const [estrutura, { data: bannersRaw }, { data: produtos }] = await Promise.all([
+  const [estrutura, { data: bannersRaw }, produtos] = await Promise.all([
     carregarEstrutura(marca),
     supabase
       .from('banners')
@@ -58,11 +37,11 @@ export default async function Vitrine({
       .eq('ativo', true)
       .eq('marca', marca)
       .order('ordem', { ascending: true }),
-    query,
+    buscarProdutosVitrine(marca, params),
   ])
 
   const banners = (bannersRaw || []) as BannerItem[]
-  const itens = await agruparConjuntos(produtos || [])
+  const itens = await agruparConjuntos(produtos)
   const configMarcaAtiva = !ehTodos ? estrutura.mapaLogos[marca] : null
 
   const filtrosAtivos: { chave: string; label: string; valor: string }[] = []
@@ -73,6 +52,10 @@ export default async function Vitrine({
   if (params.tipo) filtrosAtivos.push({ chave: 'tipo', label: 'Tipo', valor: params.tipo })
   if (params.pe === '1') filtrosAtivos.push({ chave: 'pe', label: 'Estoque', valor: 'Pronta Entrega' })
   if (params.q) filtrosAtivos.push({ chave: 'q', label: 'Busca', valor: params.q })
+
+  // Novidades no topo só na vitrine sem filtros; depois, as seções por departamento
+  const secoes = organizarVitrine(itens, filtrosAtivos.length === 0)
+  const mostrarTitulos = secoes.length > 1
 
   return (
     <div className={styles.pagina}>
@@ -139,19 +122,33 @@ export default async function Vitrine({
             </div>
 
             {itens.length > 0 ? (
-              <div className={styles.gridVitrine}>
-                {itens.map((item) =>
-                  item.tipo === 'conjunto' ? (
-                    <CardProduto
-                      key={`cj-${item.pecas[0].referencia}`}
-                      produto={item.pecas[0]}
-                      conjunto={item.pecas}
-                      r2BaseUrl={r2BaseUrl}
-                    />
-                  ) : (
-                    <CardProduto key={item.produto.referencia} produto={item.produto} r2BaseUrl={r2BaseUrl} />
-                  )
-                )}
+              <div className={secoesCss.listaSecoes}>
+                {secoes.map((secao) => (
+                  <section key={secao.chave} id={secao.chave} className={secoesCss.secao}>
+                    {mostrarTitulos && (
+                      <div className={secoesCss.cabecalhoSecao}>
+                        <h2 className={secoesCss.tituloSecao}>{secao.titulo}</h2>
+                        <span className={secoesCss.contagemSecao}>
+                          {secao.itens.length} {secao.itens.length === 1 ? 'item' : 'itens'}
+                        </span>
+                      </div>
+                    )}
+                    <div className={styles.gridVitrine}>
+                      {secao.itens.map((item) =>
+                        item.tipo === 'conjunto' ? (
+                          <CardProduto
+                            key={`cj-${item.pecas[0].referencia}`}
+                            produto={item.pecas[0]}
+                            conjunto={item.pecas}
+                            r2BaseUrl={r2BaseUrl}
+                          />
+                        ) : (
+                          <CardProduto key={item.produto.referencia} produto={item.produto} r2BaseUrl={r2BaseUrl} />
+                        )
+                      )}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
               <div className={styles.vazio}>

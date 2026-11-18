@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
-import { Produto, obterFotosCard, pastasDeCor, rotuloPeca } from '../lib/catalogo'
+import { Produto, capaDoItem, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
   produto: Produto
@@ -13,11 +13,8 @@ interface Props {
 export default function CardProduto({ produto, r2BaseUrl, meta, conjunto }: Props) {
   const ehConjunto = !!conjunto && conjunto.length > 1
 
-  // Num conjunto, a foto vem da primeira peça que tiver foto
-  const pecaComFoto = ehConjunto
-    ? conjunto!.find((p) => pastasDeCor(p.fotos).length > 0) || conjunto![0]
-    : produto
-  const { capa, hover } = obterFotosCard(pecaComFoto.fotos, pecaComFoto.referencia, r2BaseUrl)
+  // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
+  const { capa, hover, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl)
   const totalCores = pastasDeCor(pecaComFoto.fotos).length
   const titulo = produto.descricao || `Referência ${produto.referencia}`
   const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade

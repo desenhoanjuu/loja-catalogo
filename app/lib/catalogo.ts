@@ -59,15 +59,30 @@ export function ehPastaDeAngulo(nomePasta: string) {
   return PASTAS_QUE_NAO_SAO_COR.some((p) => n.includes(p))
 }
 
+// Tipo de cada foto pelo nome do arquivo:
+// 0 = frente, 1 = costas, 2 = outra foto com modelo, 3 = amostra de cor (tecido liso)
+const OUTROS_ANGULOS = ['detalhe', 'detalhes', 'lateral', 'lado', 'zoom', 'modelo', 'modelos']
+
+export function tipoDaFoto(arquivo: string): number {
+  const tokens = arquivo
+    .replace(/\.[^.]+$/, '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+  if (tokens.includes('frente')) return 0
+  if (tokens.includes('costas') || tokens.includes('verso')) return 1
+  if (tokens.some((t) => OUTROS_ANGULOS.includes(t) || /^\d+$/.test(t))) return 2
+  return 3
+}
+
+function compararTexto(a: string, b: string) {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
 export function ordenarFotos(arquivos: string[]): string[] {
-  const peso = (nome: string) => {
-    const lower = nome.toLowerCase()
-    if (lower.startsWith('frente_')) return 0
-    if (lower.startsWith('costas_')) return 1
-    if (lower.includes('_')) return 2
-    return 3 // Amostra de cor pura fica por último
-  }
-  return [...arquivos].sort((a, b) => peso(a) - peso(b) || a.localeCompare(b))
+  return [...arquivos].sort((a, b) => tipoDaFoto(a) - tipoDaFoto(b) || compararTexto(a, b))
 }
 
 // Pastas de fotos que são cores de verdade (sem "Costas", "Modelo" etc.)
@@ -76,24 +91,83 @@ export function pastasDeCor(fotos: Record<string, string[]> | null | undefined):
   return Object.keys(fotos).filter((k) => !ehPastaDeAngulo(k) && (fotos[k]?.length ?? 0) > 0)
 }
 
-// Capa = frente da primeira cor real; hover = costas da mesma cor
-export function obterFotosCard(
+// Preto e branco só aparecem na vitrine se a referência não tiver outra cor
+const CORES_NEUTRAS = ['preto', 'black', 'branco', 'white', 'offwhite']
+
+export function ehCorNeutra(nomeCor: string) {
+  const n = normalizarTexto(nomeCor)
+  return CORES_NEUTRAS.some((c) => n.includes(c))
+}
+
+export interface CapaCard {
+  capa: string | null
+  hover: string | null
+  // 0 = frente + costas, 1 = só frente, 2 = outra foto, 3 = só amostra de cor, 4 = sem foto
+  qualidade: number
+  manual: boolean // cor escolhida no painel
+}
+
+// Escolhe a foto do card: cor escolhida no painel ou, no automático,
+// a cor com foto de frente, evitando preto/branco e preferindo a que tem costas.
+// O hover só mostra as costas; se não houver costas, a imagem não troca.
+export function escolherCapa(
   fotos: Record<string, string[]> | null | undefined,
   referencia: string,
-  r2BaseUrl: string
-) {
-  if (!fotos) return { capa: null, hover: null }
-  const pasta =
-    pastasDeCor(fotos)[0] ?? Object.keys(fotos).find((k) => (fotos[k]?.length ?? 0) > 0)
-  if (!pasta) return { capa: null, hover: null }
+  r2BaseUrl: string,
+  corCapa?: string | null
+): CapaCard {
+  const vazio: CapaCard = { capa: null, hover: null, qualidade: 4, manual: false }
+  if (!fotos) return vazio
 
-  const lista = ordenarFotos(fotos[pasta])
+  let candidatas = pastasDeCor(fotos)
+  if (candidatas.length === 0) candidatas = Object.keys(fotos).filter((k) => (fotos[k]?.length ?? 0) > 0)
+  if (candidatas.length === 0) return vazio
+
+  const info = candidatas.map((pasta, indice) => {
+    const lista = ordenarFotos(fotos[pasta])
+    return {
+      pasta,
+      indice,
+      lista,
+      frente: lista.find((a) => tipoDaFoto(a) === 0),
+      costas: lista.find((a) => tipoDaFoto(a) === 1),
+      outra: lista.find((a) => tipoDaFoto(a) === 2),
+      neutra: ehCorNeutra(pasta),
+    }
+  })
+
+  const alvoManual = corCapa ? normalizarTexto(corCapa) : ''
+  const manual = alvoManual ? info.find((x) => normalizarTexto(x.pasta) === alvoManual) : undefined
+
+  const escolhida =
+    manual ||
+    [...info].sort(
+      (a, b) =>
+        Number(!!b.frente) - Number(!!a.frente) ||
+        Number(a.neutra) - Number(b.neutra) ||
+        Number(!!b.costas) - Number(!!a.costas) ||
+        a.indice - b.indice
+    )[0]
+
   const url = (arquivo: string) => `${r2BaseUrl}/${referencia}/${encodeURIComponent(arquivo)}`
+  const ehManual = !!manual
 
-  return {
-    capa: lista[0] ? url(lista[0]) : null,
-    hover: lista.length > 1 ? url(lista[1]) : null,
+  if (escolhida.frente) {
+    return {
+      capa: url(escolhida.frente),
+      hover: escolhida.costas ? url(escolhida.costas) : null,
+      qualidade: escolhida.costas ? 0 : 1,
+      manual: ehManual,
+    }
   }
+  if (escolhida.outra) return { capa: url(escolhida.outra), hover: null, qualidade: 2, manual: ehManual }
+  return { capa: url(escolhida.lista[0]), hover: null, qualidade: 3, manual: ehManual }
+}
+
+// Num conjunto, a capa vem da peça com a cor escolhida no painel ou da peça com a melhor foto
+export function capaDoItem(pecas: Produto[], r2BaseUrl: string): CapaCard & { peca: Produto } {
+  const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa) }))
+  return opcoes.find((o) => o.manual) || [...opcoes].sort((a, b) => a.qualidade - b.qualidade)[0]
 }
 
 export function formatarNome(texto: string | null | undefined) {
@@ -358,4 +432,112 @@ export async function agruparConjuntos(produtos: Produto[]): Promise<ItemVitrine
   })
 
   return itens
+}
+
+// ==========================================
+// PRODUTOS DA VITRINE (lê tudo, em páginas de 1000)
+// ==========================================
+export async function buscarProdutosVitrine(marca: string, params: Params): Promise<Produto[]> {
+  const busca = params.q ? limparBusca(params.q) : ''
+
+  const montar = () => {
+    let q = supabase.from('produtos').select('*').eq('ativo', true).order('referencia', { ascending: false })
+    if (marca !== 'TODOS') q = q.eq('marca', marca)
+    if (params.colecao) q = q.eq('colecao', params.colecao)
+    if (params.campanha) q = q.eq('campanha', params.campanha)
+    if (params.dep) q = q.eq('departamento', params.dep)
+    if (params.grupo) q = q.eq('grupo', params.grupo)
+    if (params.tipo) q = q.eq('tipo_peca', params.tipo)
+    if (params.pe === '1') q = q.gt('estoque_pe', 0)
+    if (busca) {
+      q = q.or(
+        `referencia.ilike.%${busca}%,descricao.ilike.%${busca}%,colecao.ilike.%${busca}%,campanha.ilike.%${busca}%`
+      )
+    }
+    return q
+  }
+
+  const produtos: Produto[] = []
+  const passo = 1000
+  for (let inicio = 0; ; inicio += passo) {
+    const { data, error } = await montar().range(inicio, inicio + passo - 1)
+    if (error) {
+      console.error('Erro ao buscar produtos:', error.message)
+      break
+    }
+    if (!data || data.length === 0) break
+    produtos.push(...data)
+    if (data.length < passo) break
+  }
+  return produtos
+}
+
+// ==========================================
+// SEÇÕES DA VITRINE E ORDEM MANUAL
+// (a mesma regra está no painel, na aba "Organizar Vitrine")
+// ==========================================
+export const SECOES_VITRINE: { chave: string; titulo: string }[] = [
+  { chave: 'feminino', titulo: 'Feminino' },
+  { chave: 'plusfem', titulo: 'Plus Size Feminino' },
+  { chave: 'masculino', titulo: 'Masculino' },
+  { chave: 'kids', titulo: 'Juvenil, Infantil e Baby' },
+  { chave: 'outros', titulo: 'Outros' },
+]
+
+export function secaoDoDepartamento(departamento: string | null | undefined): string {
+  const n = normalizarTexto(departamento || '')
+  if (/(infantil|juvenil|baby|bebe|kids)/.test(n)) return 'kids'
+  if (n.includes('plus') && n.includes('fem')) return 'plusfem'
+  if (n.includes('mascul')) return 'masculino'
+  if (n.includes('fem')) return 'feminino'
+  return 'outros'
+}
+
+export interface SecaoVitrine {
+  chave: string
+  titulo: string
+  itens: ItemVitrine[]
+}
+
+export function pecasDoItem(item: ItemVitrine): Produto[] {
+  return item.tipo === 'conjunto' ? item.pecas : [item.produto]
+}
+
+const SEM_ORDEM = 1e9
+
+export function organizarVitrine(itens: ItemVitrine[], incluirNovidades: boolean): SecaoVitrine[] {
+  const dados = itens.map((item, indice) => {
+    const pecas = pecasDoItem(item)
+    const menor = (campo: string) => {
+      const valores = pecas.map((p) => p[campo]).filter((v) => typeof v === 'number') as number[]
+      return valores.length ? Math.min(...valores) : SEM_ORDEM
+    }
+    return {
+      item,
+      indice,
+      ordemVitrine: menor('ordem_vitrine'),
+      ordemNovidades: menor('ordem_novidades'),
+      qualidade: capaDoItem(pecas, '').qualidade,
+      novidade: pecas.some((p) => p.novidade),
+      secao: secaoDoDepartamento(pecas[0].departamento),
+    }
+  })
+
+  type Dado = (typeof dados)[number]
+  // Ordem manual primeiro; depois, no automático, quem tem foto de frente e costas vem antes
+  const ordenar = (lista: Dado[], campo: 'ordemVitrine' | 'ordemNovidades') =>
+    [...lista]
+      .sort((a, b) => a[campo] - b[campo] || a.qualidade - b.qualidade || a.indice - b.indice)
+      .map((d) => d.item)
+
+  const secoes: SecaoVitrine[] = []
+  if (incluirNovidades) {
+    const novidades = dados.filter((d) => d.novidade)
+    if (novidades.length) secoes.push({ chave: 'novidades', titulo: 'Novidades', itens: ordenar(novidades, 'ordemNovidades') })
+  }
+  SECOES_VITRINE.forEach(({ chave, titulo }) => {
+    const daSecao = dados.filter((d) => d.secao === chave)
+    if (daSecao.length) secoes.push({ chave, titulo, itens: ordenar(daSecao, 'ordemVitrine') })
+  })
+  return secoes
 }

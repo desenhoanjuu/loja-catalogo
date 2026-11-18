@@ -14,6 +14,7 @@ export interface Peca {
   fotosPorCor: Record<string, string[]>
   caixasPorCor: Record<string, string>
   estoquePorCor: Record<string, number>
+  corCapa?: string | null // cor escolhida no painel para a vitrine (abre a página nela)
 }
 
 interface GaleriaProps {
@@ -55,15 +56,32 @@ function ehCaixaLO(caixa: string | null | undefined) {
   return !!caixa && /LO$/i.test(caixa.trim())
 }
 
+// 0 = frente, 1 = costas, 2 = outra foto com modelo, 3 = amostra de cor (vai por último)
+const OUTROS_ANGULOS = ['detalhe', 'detalhes', 'lateral', 'lado', 'zoom', 'modelo', 'modelos']
+
+function tipoDaFoto(arquivo: string): number {
+  const tokens = arquivo
+    .replace(/\.[^.]+$/, '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+  if (tokens.includes('frente')) return 0
+  if (tokens.includes('costas') || tokens.includes('verso')) return 1
+  if (tokens.some((t) => OUTROS_ANGULOS.includes(t) || /^\d+$/.test(t))) return 2
+  return 3
+}
+
 function ordenarFotos(arquivos: string[]): string[] {
-  const peso = (nome: string) => {
-    const lower = nome.toLowerCase()
-    if (lower.startsWith('frente_')) return 0
-    if (lower.startsWith('costas_')) return 1
-    if (lower.includes('_')) return 2
-    return 3
-  }
-  return [...arquivos].sort((a, b) => peso(a) - peso(b) || a.localeCompare(b))
+  return [...arquivos].sort((a, b) => tipoDaFoto(a) - tipoDaFoto(b) || (a < b ? -1 : a > b ? 1 : 0))
+}
+
+const CORES_NEUTRAS = ['preto', 'black', 'branco', 'white', 'offwhite']
+
+function ehCorNeutra(nome: string) {
+  const n = normalizar(nome)
+  return CORES_NEUTRAS.some((c) => n.includes(c))
 }
 
 function formatarNome(texto: string | null | undefined) {
@@ -163,8 +181,17 @@ export default function GaleriaProduto({ pecas, r2BaseUrl }: GaleriaProps) {
   const cores = montarCores(pecas, r2BaseUrl)
 
   const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
+  // Abre na cor escolhida no painel; senão, numa cor com foto e estoque, evitando preto/branco
+  const corDoPainel = pecas
+    .map((p) => (p.corCapa ? normalizar(p.corCapa) : ''))
+    .find((c) => c && cores.some((x) => x.chave === c || x.chave.startsWith(c) || c.startsWith(x.chave)))
   const corInicial =
-    cores.find((c) => c.fotos.length > 0 && temEstoque(c)) || cores.find((c) => c.fotos.length > 0) || cores[0]
+    (corDoPainel && cores.find((c) => c.chave === corDoPainel || c.chave.startsWith(corDoPainel) || corDoPainel.startsWith(c.chave))) ||
+    cores.find((c) => c.fotos.length > 0 && temEstoque(c) && !ehCorNeutra(c.nome)) ||
+    cores.find((c) => c.fotos.length > 0 && temEstoque(c)) ||
+    cores.find((c) => c.fotos.length > 0 && !ehCorNeutra(c.nome)) ||
+    cores.find((c) => c.fotos.length > 0) ||
+    cores[0]
 
   const [chaveSelecionada, setChaveSelecionada] = useState<string | null>(corInicial?.chave ?? null)
   const [indiceFoto, setIndiceFoto] = useState(0)
