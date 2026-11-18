@@ -10,7 +10,7 @@ import {
   Params,
   Produto,
   supabase,
-  buscarConjuntoDaReferencia,
+  buscarConjuntosDaReferencia,
   pecasDoConjunto,
   buscarSimilares,
   ehVisivelNoSite,
@@ -39,16 +39,15 @@ export default async function PaginaProduto({
   // Referência não autorizada no painel (ou esgotada no ERP) não abre, nem pelo link direto
   const produto = ehVisivelNoSite(encontrado) ? encontrado : null
 
-  // A página da peça mostra só a peça. Se ela faz parte de um conjunto, o conjunto aparece abaixo.
-  let conjunto: Conjunto | null = null
-  let pecasConjunto: Produto[] = []
+  // A página da peça mostra só a peça. Os conjuntos de que ela faz parte aparecem abaixo.
+  const conjuntos: { conjunto: Conjunto; pecas: Produto[] }[] = []
   if (produto) {
-    conjunto = await buscarConjuntoDaReferencia(produto.referencia)
-    if (conjunto) {
-      pecasConjunto = await pecasDoConjunto(conjunto)
-      if (pecasConjunto.length < 2) conjunto = null
+    for (const conjunto of await buscarConjuntosDaReferencia(produto.referencia)) {
+      const pecas = await pecasDoConjunto(conjunto)
+      if (pecas.length > 1) conjuntos.push({ conjunto, pecas })
     }
   }
+  const refsDosConjuntos = Array.from(new Set(conjuntos.flatMap((c) => c.pecas.map((p) => p.referencia))))
 
   // A aba ativa no cabeçalho é a marca do produto
   const marca = normalizarMarca(produto?.marca)
@@ -56,7 +55,7 @@ export default async function PaginaProduto({
 
   const [estrutura, similares] = await Promise.all([
     carregarEstrutura(marca),
-    produto ? buscarSimilares(produto, 8, pecasConjunto.map((p) => p.referencia)) : Promise.resolve([]),
+    produto ? buscarSimilares(produto, 8, refsDosConjuntos) : Promise.resolve([]),
   ])
 
   return (
@@ -112,16 +111,21 @@ export default async function PaginaProduto({
 
                 <GaleriaProduto pecas={[produtoParaPeca(produto)]} r2BaseUrl={r2BaseUrl} />
 
-                {conjunto && (
+                {conjuntos.length > 0 && (
                   <section className={styles.similares}>
-                    <h2 className={styles.tituloSimilares}>Também vendido em conjunto</h2>
+                    <h2 className={styles.tituloSimilares}>
+                      {conjuntos.length > 1 ? 'Também vendido nestes conjuntos' : 'Também vendido em conjunto'}
+                    </h2>
                     <div className={styles.gridSimilares}>
-                      <CardProduto
-                        produto={pecasConjunto[0]}
-                        conjunto={pecasConjunto}
-                        conjuntoInfo={conjunto}
-                        r2BaseUrl={r2BaseUrl}
-                      />
+                      {conjuntos.map(({ conjunto, pecas }) => (
+                        <CardProduto
+                          key={conjunto.id}
+                          produto={pecas[0]}
+                          conjunto={pecas}
+                          conjuntoInfo={conjunto}
+                          r2BaseUrl={r2BaseUrl}
+                        />
+                      ))}
                     </div>
                   </section>
                 )}

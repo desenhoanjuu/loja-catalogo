@@ -422,17 +422,18 @@ export async function buscarConjunto(id: string): Promise<Conjunto | null> {
   return lerConjunto(data)
 }
 
-export async function buscarConjuntoDaReferencia(referencia: string): Promise<Conjunto | null> {
+// Todos os conjuntos de que a peça faz parte (uma calça pode combinar com várias blusas)
+export async function buscarConjuntosDaReferencia(referencia: string): Promise<Conjunto[]> {
   const { data, error } = await supabase
     .from('conjuntos')
     .select('*')
     .contains('referencias', [referencia])
-    .limit(1)
+    .order('criado_em')
   if (error) {
-    console.error('Erro ao ler conjunto:', error.message)
-    return null
+    console.error('Erro ao ler conjuntos:', error.message)
+    return []
   }
-  return data?.[0] ? lerConjunto(data[0]) : null
+  return (data || []).map(lerConjunto)
 }
 
 // Peças visíveis do conjunto, na ordem do cadastro
