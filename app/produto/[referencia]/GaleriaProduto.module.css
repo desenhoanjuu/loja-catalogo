@@ -39,6 +39,15 @@
     text-transform: none;
   }
 
+  /* Nenhuma coluna fica mais larga que a tela (as miniaturas rolam dentro da própria faixa) */
+  .gridProduto > * {
+    min-width: 0;
+  }
+
+  .linhaDetalhe {
+    overflow-wrap: anywhere;
+  }
+
   .gridProduto {
     display: grid;
     grid-template-columns: 76px minmax(0, 1.1fr) minmax(280px, 1fr);
@@ -553,6 +562,20 @@
     .colunaMiniaturas {
       order: 2;
       flex-direction: row;
+      width: 100%;
+    }
+
+    .gridProduto {
+      gap: 16px;
+    }
+
+    .wrapperFotoPrincipal {
+      max-height: none;
+    }
+
+    .btnMiniatura {
+      width: 64px;
+      height: 80px;
     }
     .listaMiniaturas {
       flex-direction: row;

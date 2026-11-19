@@ -51,6 +51,14 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
 
   return (
     <aside className={`${styles.sidebarFiltros} ${className || ''}`}>
+      {/* No celular, os filtros ficam fechados atrás deste botão (no computador, sempre abertos) */}
+      <input type="checkbox" id="abrir-filtros" className={styles.toggleFiltros} />
+      <label htmlFor="abrir-filtros" className={styles.botaoFiltros}>
+        <span>Filtros</span>
+        {temFiltroAtivo && <span className={styles.avisoFiltrosAtivos}>filtros ativos</span>}
+      </label>
+
+      <div className={styles.corpoFiltros}>
       <div className={styles.sidebarHeader}>
         <h2 className={styles.sidebarTitulo}>
           {marca === 'TODOS' ? 'Filtros • Todos' : `Filtros • ${marca}`}
@@ -94,6 +102,7 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
       />
       <GrupoFiltro titulo="Grupo" opcoes={grupos} chave="grupo" params={params} />
       <GrupoFiltro titulo="Tipo de Peça" opcoes={tipos} chave="tipo" params={params} />
+      </div>
     </aside>
   )
 }

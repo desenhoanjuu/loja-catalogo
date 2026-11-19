@@ -929,3 +929,77 @@
       font-size: var(--fs-sm);
     }
   }
+/* =========================================================
+   AJUSTES PARA CELULAR
+   ========================================================= */
+
+/* Colunas do layout nunca ficam mais largas que a tela */
+.layoutComFiltros > * {
+  min-width: 0;
+}
+
+/* Filtros: no celular, ficam fechados atrás do botão "Filtros" */
+.toggleFiltros {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.botaoFiltros {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* Cabeçalho não fica grudado no topo: sobra mais tela para os produtos */
+  .header {
+    position: static;
+  }
+
+  .botaoFiltros {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--ink);
+    user-select: none;
+  }
+
+  .botaoFiltros::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--ink-muted);
+    border-bottom: 1.5px solid var(--ink-muted);
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.2s;
+  }
+
+  .toggleFiltros:checked ~ .botaoFiltros::after {
+    transform: rotate(-135deg) translateY(-2px);
+  }
+
+  .toggleFiltros:focus-visible ~ .botaoFiltros {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+
+  .avisoFiltrosAtivos {
+    margin-left: auto;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .toggleFiltros:not(:checked) ~ .corpoFiltros {
+    display: none;
+  }
+
+  .toggleFiltros:checked ~ .corpoFiltros {
+    margin-top: 14px;
+  }
+}

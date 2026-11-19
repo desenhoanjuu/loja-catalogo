@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
+import RolarMenuAtivo from './RolarMenuAtivo'
 import {
   ABAS_MARCAS,
   EstruturaCatalogo,
@@ -24,7 +25,7 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
     <header className={styles.header}>
       <div className={styles.barraMarcas}>
         <div className={styles.containerMarcas}>
-          <div className={styles.abasMarcas}>
+          <div className={styles.abasMarcas} id="abas-marcas">
             {ABAS_MARCAS.map((aba) => {
               const ativa = marca === aba
               const infoAba = mapaLogos[aba]
@@ -32,6 +33,7 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
                 <Link
                   key={aba}
                   href={urlDaMarca(aba)}
+                  data-ativo={ativa ? 'true' : undefined}
                   className={`${styles.abaMarca} ${ativa ? styles.abaMarcaAtiva : ''}`}
                 >
                   {aba !== 'TODOS' && infoAba?.logo_url ? (
@@ -58,10 +60,11 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
       </div>
 
       <nav className={styles.navBar}>
-        <div className={styles.navContainer}>
+        <div className={styles.navContainer} id="menu-departamentos">
           <div className={styles.menuItem}>
             <Link
               href={urlDaMarca(marca)}
+              data-ativo={menuTodasAtivo ? 'true' : undefined}
               className={`${styles.menuLink} ${menuTodasAtivo ? styles.menuLinkAtivo : ''}`}
             >
               {ehTodos ? 'Todas as Peças' : `Tudo de ${marca}`}
@@ -75,6 +78,7 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
                   params.colecao || params.campanha ? styles.menuLinkAtivo : ''
                 }`}
                 style={{ cursor: 'pointer' }}
+                data-ativo={params.colecao || params.campanha ? 'true' : undefined}
                 tabIndex={0}
               >
                 Coleções & Campanhas ▾
@@ -121,6 +125,7 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
               <div key={dep} className={styles.menuItem}>
                 <Link
                   href={montarUrlFiltro(baseParamsAba, { dep })}
+                  data-ativo={ativo ? 'true' : undefined}
                   className={`${styles.menuLink} ${ativo ? styles.menuLinkAtivo : ''}`}
                 >
                   {dep.toLowerCase()}
@@ -144,6 +149,7 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
           })}
         </div>
       </nav>
+      <RolarMenuAtivo ids={['menu-departamentos', 'abas-marcas']} />
     </header>
   )
 }
