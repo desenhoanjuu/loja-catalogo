@@ -34,24 +34,20 @@ export default async function Rodape() {
           ))}
         </nav>
 
-        <div className={styles.colunas}>
-          <address className={styles.showroom}>
-            <span className={styles.tituloBloco}>Showroom</span>
-            <span>R. Mendes Gonçalves, 97</span>
-            <span>CEP 03.027-010</span>
-            <span>Bairro Brás</span>
-            <span>São Paulo - Brasil</span>
-            <a href={ENDERECO_MAPA} target="_blank" rel="noopener noreferrer" className={styles.linkMapa}>
-              Ver no mapa →
-            </a>
-          </address>
+        <address className={styles.showroom}>
+          <span className={styles.tituloBloco}>Showroom</span>
+          <span className={styles.linhaEndereco}>R. Mendes Gonçalves, 97 · Bairro Brás</span>
+          <span className={styles.linhaEndereco}>CEP 03.027-010 · São Paulo - Brasil</span>
+          <a href={ENDERECO_MAPA} target="_blank" rel="noopener noreferrer" className={styles.linkMapa}>
+            Ver no mapa
+          </a>
+        </address>
 
-          <p className={styles.registro}>
-            AISHTY® é uma marca registrada da ETHEREAL.
-            <br />
-            A ETHEREAL possui o registro de certificado da marca AISHTY junto ao INPI.
-          </p>
-        </div>
+        <p className={styles.registro}>
+          AISHTY® é uma marca registrada da ETHEREAL.
+          <br />
+          A ETHEREAL possui o registro de certificado da marca AISHTY junto ao INPI.
+        </p>
       </div>
     </footer>
   )
