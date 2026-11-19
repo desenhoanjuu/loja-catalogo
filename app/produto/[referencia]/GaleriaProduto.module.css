@@ -97,11 +97,31 @@
     color: var(--accent);
   }
   
+  /* Rolagem própria: a altura acompanha a foto principal (calculada na página) */
   .listaMiniaturas {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 100%;
+    max-height: var(--altura-miniaturas, 560px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  .listaMiniaturas::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .listaMiniaturas::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 2px;
+  }
+
+  .btnMiniatura {
+    flex: none;
   }
   
   .btnMiniatura {
@@ -418,6 +438,25 @@
     border-radius: 2px;
   }
   
+  .seloProg {
+    background-color: #2563eb;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  .badgeProgramacao {
+    font-weight: 600;
+    color: #1d4ed8;
+    background-color: #e0ebff;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: var(--fs-xs);
+    text-align: right;
+  }
+
   .seloVazio {
     height: 16px;
     display: block;
@@ -518,6 +557,8 @@
     .listaMiniaturas {
       flex-direction: row;
       overflow-x: auto;
+      overflow-y: hidden;
+      max-height: none;
     }
     .setaVertical {
       display: none;

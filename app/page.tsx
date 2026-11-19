@@ -57,6 +57,7 @@ export default async function Vitrine({
   if (params.grupo) filtrosAtivos.push({ chave: 'grupo', label: 'Grupo', valor: params.grupo })
   if (params.tipo) filtrosAtivos.push({ chave: 'tipo', label: 'Tipo', valor: params.tipo })
   if (params.pe === '1') filtrosAtivos.push({ chave: 'pe', label: 'Estoque', valor: 'Pronta Entrega' })
+  if (params.prog === '1') filtrosAtivos.push({ chave: 'prog', label: 'Estoque', valor: 'Programação' })
   if (params.q) filtrosAtivos.push({ chave: 'q', label: 'Busca', valor: params.q })
 
   // Novidades no topo só na vitrine sem filtros; depois, as seções por departamento

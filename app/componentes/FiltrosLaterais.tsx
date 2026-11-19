@@ -71,6 +71,12 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
           >
             <span>Pronta Entrega</span>
           </Link>
+          <Link
+            href={montarUrlFiltro(params, { prog: params.prog === '1' ? undefined : '1' })}
+            className={`${styles.opcaoFiltro} ${params.prog === '1' ? styles.opcaoFiltroAtiva : ''}`}
+          >
+            <span>Programação</span>
+          </Link>
         </div>
       </div>
 

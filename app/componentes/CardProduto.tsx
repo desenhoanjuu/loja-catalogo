@@ -2,7 +2,7 @@ import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
-import { Conjunto, Produto, capaDoItem, normalizarTexto, pastasDeCor, rotuloPeca } from '../lib/catalogo'
+import { Conjunto, Produto, capaDoItem, carregarConfigSite, normalizarTexto, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
   produto: Produto
@@ -12,7 +12,8 @@ interface Props {
   conjuntoInfo?: Conjunto // cadastro do conjunto (fotos próprias e link da página do conjunto)
 }
 
-export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjuntoInfo }: Props) {
+export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjuntoInfo }: Props) {
+  const config = await carregarConfigSite()
   const ehConjunto = !!conjunto && conjunto.length > 1
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
@@ -28,7 +29,9 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjun
     .flatMap((p) => String(p.campanha || '').split(','))
     .map((c) => c.trim())
     .find((c) => normalizarTexto(c).includes('promo'))
-  const etiqueta = campanhaPromocional || colecao
+  // Cada etiqueta pode ser ligada/desligada no painel (aba ⚙️ Site)
+  const etiqueta =
+    (config.etiquetaPromocional && campanhaPromocional) || (config.etiquetaColecao && colecao) || null
 
   return (
     <Link
@@ -52,7 +55,7 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjun
           <span className={styles.semFoto}>Sem imagem</span>
         )}
 
-        {novidade && <span className={styles.badgeNovidade}>Novidade</span>}
+        {config.etiquetaNovidade && novidade && <span className={styles.badgeNovidade}>Novidade</span>}
         {etiqueta && <span className={styles.badgeColecao}>{etiqueta}</span>}
         {totalCores > 1 && <span className={styles.badgeCores}>{totalCores} cores</span>}
       </div>

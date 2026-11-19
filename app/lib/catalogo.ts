@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { cache } from 'react'
 
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,6 +52,30 @@ export function urlArquivoPainel(valor: string | null | undefined): string | nul
   if (caminho && base) return `${base}/${caminho[1]}`
   return texto
 }
+
+// ==========================================
+// CONFIGURAÇÕES DO SITE (aba ⚙️ Site do painel)
+// ==========================================
+export interface ConfigSite {
+  etiquetaColecao: boolean // VERÃO, INVERNO... no canto da foto
+  etiquetaPromocional: boolean // campanha promocional no canto da foto
+  etiquetaNovidade: boolean
+}
+
+const CONFIG_PADRAO: ConfigSite = { etiquetaColecao: false, etiquetaPromocional: true, etiquetaNovidade: true }
+
+// Lida uma vez por página (cache do React), mesmo com centenas de cards
+export const carregarConfigSite = cache(async (): Promise<ConfigSite> => {
+  const { data, error } = await supabase.from('site_config').select('chave, valor')
+  if (error || !data) return CONFIG_PADRAO
+  const config = { ...CONFIG_PADRAO }
+  data.forEach((linha) => {
+    if (linha.chave in config && typeof linha.valor === 'boolean') {
+      config[linha.chave as keyof ConfigSite] = linha.valor
+    }
+  })
+  return config
+})
 
 // ==========================================
 // MARCAS
@@ -521,6 +546,7 @@ export async function buscarProdutosVitrine(marca: string, params: Params): Prom
     if (params.grupo) q = q.eq('grupo', params.grupo)
     if (params.tipo) q = q.eq('tipo_peca', params.tipo)
     if (params.pe === '1') q = q.gt('estoque_pe', 0)
+    if (params.prog === '1') q = q.eq('programacao', true)
     if (busca) {
       q = q.or(
         `referencia.ilike.%${busca}%,descricao.ilike.%${busca}%,colecao.ilike.%${busca}%,campanha.ilike.%${busca}%`

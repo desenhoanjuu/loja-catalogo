@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styles from './GaleriaProduto.module.css'
 import ImagemAjustavel from '../../componentes/ImagemAjustavel'
 
@@ -26,6 +26,8 @@ export interface Caixa {
   cores: string[]
   estoque: number
   esgotada: boolean
+  programacao?: boolean // sem estoque físico ainda, com previsão de chegada
+  previsao?: string | null
 }
 
 interface GaleriaProps {
@@ -37,6 +39,8 @@ interface GaleriaProps {
 interface InfoPecaNaCor {
   caixa: string | null
   estoque: number
+  programacao?: boolean
+  previsao?: string | null
 }
 
 // Uma opção do seletor: uma caixa (modo novo) ou uma cor (dados antigos)
@@ -271,7 +275,7 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       (p.caixas || [])
         // Caixa de verdade é letra (A, B, TA...); número no lugar da letra é erro de cadastro
         .filter((cx) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
-        .filter((cx) => incluirEsgotadas || !cx.esgotada || cx.estoque > 0)
+        .filter((cx) => incluirEsgotadas || !cx.esgotada || cx.estoque > 0 || !!cx.programacao)
         .forEach((cx) => {
           const id = `${cx.pecas}${cx.caixa}`
           const chave = ehConjunto ? normalizar(cx.caixa) : normalizar(id)
@@ -289,15 +293,19 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
             }
             mapa.set(chave, item)
           }
-          item.porPeca[p.referencia] = { caixa: id, estoque: cx.estoque }
+          item.porPeca[p.referencia] = {
+            caixa: id,
+            estoque: cx.estoque,
+            programacao: !!cx.programacao,
+            previsao: cx.previsao || null,
+          }
         })
     )
     return Array.from(mapa.values())
   }
 
-  // Caixas esgotadas no ERP ficam de fora; se todas estiverem esgotadas, mostra todas como "Esgotado"
-  const disponiveis = montar(false)
-  return disponiveis.length > 0 ? disponiveis : montar(true)
+  // Caixas esgotadas no ERP não aparecem (as que estão em programação, sim)
+  return montar(false)
 }
 
 export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }: GaleriaProps) {
@@ -316,12 +324,24 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
         const n = normalizar(f.cor)
         return c.cores.some((x) => x === n || x.startsWith(n) || n.startsWith(x))
       })
-      .map((f) => f.url)
+      .sort(
+        (a, b) =>
+          tipoDaFoto(decodeURIComponent(a.url.split('/').pop() || '')) -
+          tipoDaFoto(decodeURIComponent(b.url.split('/').pop() || ''))
+      )
     if (doConjunto.length === 0) return c
-    return { ...c, fotos: Array.from(new Set([...doConjunto, ...c.fotos])), capas: [doConjunto[0]] }
+    // A miniatura da caixa só usa foto do conjunto que tenha a cor dela; foto "de todas as cores"
+    // entra na galeria, mas não vira miniatura (senão todas as caixas ficam com a mesma foto)
+    const daCor = doConjunto.find((f) => !!f.cor)
+    return {
+      ...c,
+      fotos: Array.from(new Set([...doConjunto.map((f) => f.url), ...c.fotos])),
+      capas: daCor ? [daCor.url] : c.capas.length > 0 ? c.capas : [doConjunto[0].url],
+    }
   })
 
   const temEstoque = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.estoque > 0)
+  const temProgramacao = (c: CorExibida) => Object.values(c.porPeca).some((i) => i.programacao)
   const temCorNeutra = (c: CorExibida) => c.cores.length > 0 && c.cores.every((x) => ehCorNeutra(x))
   const combina = (a: string, b: string) => a === b || a.startsWith(b) || b.startsWith(a)
 
@@ -332,12 +352,25 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
     (corDoPainel && cores.find((c) => c.cores.some((x) => combina(x, corDoPainel)))) ||
     cores.find((c) => c.fotos.length > 0 && temEstoque(c) && !temCorNeutra(c)) ||
     cores.find((c) => c.fotos.length > 0 && temEstoque(c)) ||
+    cores.find((c) => c.fotos.length > 0 && temProgramacao(c)) ||
     cores.find((c) => c.fotos.length > 0 && !temCorNeutra(c)) ||
     cores.find((c) => c.fotos.length > 0) ||
     cores[0]
 
   const [chaveSelecionada, setChaveSelecionada] = useState<string | null>(corInicial?.chave ?? null)
   const [indiceFoto, setIndiceFoto] = useState(0)
+
+  // Galeria lateral com rolagem própria, da mesma altura da foto principal
+  const quadroRef = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+  const [alturaQuadro, setAlturaQuadro] = useState<number | null>(null)
+  useEffect(() => {
+    const quadro = quadroRef.current
+    if (!quadro || typeof ResizeObserver === 'undefined') return
+    const obs = new ResizeObserver(() => setAlturaQuadro(quadro.offsetHeight))
+    obs.observe(quadro)
+    return () => obs.disconnect()
+  }, [])
   // Proporção do quadro da foto principal: segue a foto (as suas são 4:5). Amostra de cor
   // (quadrada) não muda o quadro, para a página não "pular" ao passar as fotos.
   const [proporcaoQuadro, setProporcaoQuadro] = useState(0.8)
@@ -361,6 +394,18 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
     setIndiceFoto(0)
   }
 
+  // Mantém a miniatura da foto atual visível dentro da galeria lateral (sem rolar a página)
+  useEffect(() => {
+    const lista = listaRef.current
+    const botao = lista?.querySelector<HTMLElement>(`[data-indice="${indiceFoto}"]`)
+    if (!lista || !botao) return
+    if (lista.scrollHeight > lista.clientHeight + 1) {
+      lista.scrollTo({ top: botao.offsetTop - lista.clientHeight / 2 + botao.clientHeight / 2, behavior: 'smooth' })
+    } else if (lista.scrollWidth > lista.clientWidth + 1) {
+      lista.scrollTo({ left: botao.offsetLeft - lista.clientWidth / 2 + botao.clientWidth / 2, behavior: 'smooth' })
+    }
+  }, [indiceFoto, chaveSelecionada])
+
   const fotoAnterior = () => {
     if (fotos.length <= 1) return
     setIndiceFoto((prev) => (prev === 0 ? fotos.length - 1 : prev - 1))
@@ -382,10 +427,19 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
           </button>
         )}
-        <div className={styles.listaMiniaturas}>
+        <div
+          ref={listaRef}
+          className={styles.listaMiniaturas}
+          style={
+            alturaQuadro
+              ? ({ '--altura-miniaturas': `${Math.max(alturaQuadro - (fotos.length > 1 ? 76 : 0), 200)}px` } as React.CSSProperties)
+              : undefined
+          }
+        >
           {fotos.map((foto, idx) => (
             <button
               key={foto}
+              data-indice={idx}
               type="button"
               onClick={() => setIndiceFoto(idx)}
               className={`${styles.btnMiniatura} ${idx === indiceFoto ? styles.btnMiniaturaAtiva : ''}`}
@@ -404,7 +458,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
 
       {/* COLUNA 2: Foto principal */}
       <div className={styles.colunaPrincipal}>
-        <div className={styles.wrapperFotoPrincipal} style={{ aspectRatio: String(proporcaoQuadro) }}>
+        <div ref={quadroRef} className={styles.wrapperFotoPrincipal} style={{ aspectRatio: String(proporcaoQuadro) }}>
           {fotos.length > 1 && (
             <button type="button" onClick={fotoAnterior} className={`${styles.setaLateral} ${styles.setaEsquerda}`} aria-label="Foto anterior">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
@@ -498,7 +552,13 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
                 return (
                   <button key={cor.chave} type="button" onClick={() => trocarCor(cor.chave)} className={styles.itemCorBox}>
                     <div className={styles.selosCaixaTopo}>
-                      {temEstoque(cor) ? <span className={styles.seloPE}>P.E.</span> : <span className={styles.seloVazio}></span>}
+                      {temEstoque(cor) ? (
+                        <span className={styles.seloPE}>P.E.</span>
+                      ) : temProgramacao(cor) ? (
+                        <span className={styles.seloProg}>PROG.</span>
+                      ) : (
+                        <span className={styles.seloVazio}></span>
+                      )}
                     </div>
 
                     <span className={styles.nomeCaixaTopo}>{caixa ? `CX-${caixa}` : '\u00A0'}</span>
@@ -539,8 +599,20 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
                   {!info ? (
                     <span className={styles.badgeEsgotado}>{modoCaixas ? 'Não tem esta caixa' : 'Não tem nesta cor'}</span>
                   ) : (
-                    <span className={info.estoque > 0 ? styles.badgeEstoque : styles.badgeEsgotado}>
-                      {info.estoque > 0 ? `${info.estoque} cxs.` : 'Esgotado'}
+                    <span
+                      className={
+                        info.estoque > 0
+                          ? styles.badgeEstoque
+                          : info.programacao
+                            ? styles.badgeProgramacao
+                            : styles.badgeEsgotado
+                      }
+                    >
+                      {info.estoque > 0
+                        ? `${info.estoque} cxs.`
+                        : info.programacao
+                          ? `Programação${info.previsao ? ` · previsão ${info.previsao}` : ''}`
+                          : 'Esgotado'}
                     </span>
                   )}
                 </div>
