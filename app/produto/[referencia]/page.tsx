@@ -13,6 +13,7 @@ import {
   buscarConjuntosDaReferencia,
   pecasDoConjunto,
   buscarSimilares,
+  coresEmComum,
   ehVisivelNoSite,
   carregarEstrutura,
   montarUrlFiltro,
@@ -44,7 +45,7 @@ export default async function PaginaProduto({
   if (produto) {
     for (const conjunto of await buscarConjuntosDaReferencia(produto.referencia)) {
       const pecas = await pecasDoConjunto(conjunto)
-      if (pecas.length > 1) conjuntos.push({ conjunto, pecas })
+      if (pecas.length > 1 && coresEmComum(pecas)) conjuntos.push({ conjunto, pecas })
     }
   }
   const refsDosConjuntos = Array.from(new Set(conjuntos.flatMap((c) => c.pecas.map((p) => p.referencia))))

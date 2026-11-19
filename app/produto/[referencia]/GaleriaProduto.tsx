@@ -269,43 +269,61 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
       .map((f) => f.url)
   }
 
-  const montar = (incluirEsgotadas: boolean) => {
-    const mapa = new Map<string, CorExibida>()
-    pecas.forEach((p) =>
-      (p.caixas || [])
-        // Caixa de verdade é letra (A, B, TA...); número no lugar da letra é erro de cadastro
-        .filter((cx) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
-        .filter((cx) => incluirEsgotadas || !cx.esgotada || cx.estoque > 0 || !!cx.programacao)
-        .forEach((cx) => {
-          const id = `${cx.pecas}${cx.caixa}`
-          const chave = ehConjunto ? normalizar(cx.caixa) : normalizar(id)
-          let item = mapa.get(chave)
-          if (!item) {
-            const fotosPorCor = cx.cores.map((c) => fotosDaCor(c))
-            item = {
-              chave,
-              nome: cx.cores.map((c) => formatarNome(c)).join(' + ') || `Caixa ${cx.caixa}`,
-              fotos: Array.from(new Set(fotosPorCor.flat())),
-              capas: fotosPorCor.map((f) => f[0]).filter(Boolean),
-              cores: cx.cores.map((c) => normalizar(c)),
-              pecasPorCaixa: cx.pecas,
-              porPeca: {},
-            }
-            mapa.set(chave, item)
-          }
-          item.porPeca[p.referencia] = {
-            caixa: id,
-            estoque: cx.estoque,
-            programacao: !!cx.programacao,
-            previsao: cx.previsao || null,
-          }
-        })
-    )
-    return Array.from(mapa.values())
+  // Caixas que aparecem no site: letra válida e com estoque (ou em programação)
+  const visiveis = (p: Peca) =>
+    (p.caixas || [])
+      .filter((cx) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
+      .filter((cx) => !cx.esgotada || cx.estoque > 0 || !!cx.programacao)
+
+  const novaOpcao = (chave: string, cx: Caixa): CorExibida => {
+    const fotosPorCor = cx.cores.map((c) => fotosDaCor(c))
+    return {
+      chave,
+      nome: cx.cores.map((c) => formatarNome(c)).join(' + ') || `Caixa ${cx.caixa}`,
+      fotos: Array.from(new Set(fotosPorCor.flat())),
+      capas: fotosPorCor.map((f) => f[0]).filter(Boolean),
+      cores: cx.cores.map((c) => normalizar(c)),
+      pecasPorCaixa: cx.pecas,
+      porPeca: {},
+    }
+  }
+  const infoDaCaixa = (cx: Caixa) => ({
+    caixa: `${cx.pecas}${cx.caixa}`,
+    estoque: cx.estoque,
+    programacao: !!cx.programacao,
+    previsao: cx.previsao || null,
+  })
+
+  if (!ehConjunto) {
+    return visiveis(pecas[0]).map((cx) => {
+      const item = novaOpcao(normalizar(`${cx.pecas}${cx.caixa}`), cx)
+      item.porPeca[pecas[0].referencia] = infoDaCaixa(cx)
+      return item
+    })
   }
 
-  // Caixas esgotadas no ERP não aparecem (as que estão em programação, sim)
-  return montar(false)
+  // Conjunto: a opção é a COR. Só entra se todas as peças têm caixa disponível nessa cor;
+  // cada peça mostra a própria caixa (a letra pode ser diferente entre blusa e calça).
+  const chaveDasCores = (cx: Caixa) => cx.cores.map((c) => normalizar(c)).sort().join('+')
+  const caixasPorPeca = pecas.map((p) => {
+    const mapa = new Map<string, Caixa>()
+    visiveis(p).forEach((cx) => {
+      const chave = chaveDasCores(cx)
+      if (!chave) return
+      const atual = mapa.get(chave)
+      if (!atual || cx.estoque > atual.estoque) mapa.set(chave, cx)
+    })
+    return mapa
+  })
+  return Array.from(caixasPorPeca[0].keys())
+    .filter((chave) => caixasPorPeca.every((mapa) => mapa.has(chave)))
+    .map((chave) => {
+      const item = novaOpcao(chave, caixasPorPeca[0].get(chave)!)
+      pecas.forEach((p, i) => {
+        item.porPeca[p.referencia] = infoDaCaixa(caixasPorPeca[i].get(chave)!)
+      })
+      return item
+    })
 }
 
 export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }: GaleriaProps) {
@@ -320,7 +338,9 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
       // Amostra de cor vem das peças; se alguma foi copiada para o conjunto, não repete
       .filter((f) => tipoDaFoto(decodeURIComponent(f.url.split('/').pop() || '')) !== 3)
       .filter((f) => {
-        if (!f.cor) return true
+        // Foto sem cor: só entra se o conjunto tem uma opção só, ou se foi enviada no painel como
+        // "Todas as cores". Fotos gerais copiadas da peça (costas.jpg, modelo.jpg) não se espalham.
+        if (!f.cor) return coresBase.length === 1 || decodeURIComponent(f.url).includes('_conjunto_')
         const n = normalizar(f.cor)
         return c.cores.some((x) => x === n || x.startsWith(n) || n.startsWith(x))
       })

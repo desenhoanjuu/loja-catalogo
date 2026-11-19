@@ -477,6 +477,25 @@ export async function buscarConjuntosDaReferencia(referencia: string): Promise<C
   return (data || []).map(lerConjunto)
 }
 
+// Conjunto só vale quando as peças têm caixa disponível na MESMA cor (ex.: blusa e calça pretas).
+// Peça sem dados de caixas ainda (não sincronizada) não bloqueia.
+export function coresEmComum(pecas: Produto[]): boolean {
+  const chavesPorPeca = pecas.map((p) => {
+    const caixas = Array.isArray(p.caixas) ? p.caixas : []
+    if (caixas.length === 0) return null
+    return new Set(
+      caixas
+        .filter((cx: Produto) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
+        .filter((cx: Produto) => !cx.esgotada || cx.estoque > 0 || cx.programacao)
+        .map((cx: Produto) => (cx.cores || []).map((c: string) => normalizarTexto(c)).sort().join('+'))
+        .filter(Boolean)
+    )
+  })
+  const comDados = chavesPorPeca.filter((c): c is Set<string> => c !== null)
+  if (comDados.length < 2) return true
+  return Array.from(comDados[0]).some((chave) => comDados.every((c) => c.has(chave)))
+}
+
 // Peças visíveis do conjunto, na ordem do cadastro
 export async function pecasDoConjunto(conjunto: Conjunto): Promise<Produto[]> {
   const { data } = await supabase
@@ -525,7 +544,7 @@ export async function conjuntosDaVitrine(produtos: Produto[]): Promise<ItemVitri
   const itens: ItemVitrine[] = []
   usados.forEach((conjunto) => {
     const pecas = conjunto.referencias.map((r) => porRef.get(r)).filter(Boolean) as Produto[]
-    if (pecas.length > 1) itens.push({ tipo: 'conjunto', pecas, conjunto })
+    if (pecas.length > 1 && coresEmComum(pecas)) itens.push({ tipo: 'conjunto', pecas, conjunto })
   })
   return itens
 }

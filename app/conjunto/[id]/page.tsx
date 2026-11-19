@@ -9,6 +9,7 @@ import {
   Params,
   buscarConjunto,
   buscarSimilares,
+  coresEmComum,
   carregarEstrutura,
   normalizarMarca,
   pecasDoConjunto,
@@ -26,7 +27,7 @@ export default async function PaginaConjunto({ params }: { params: Promise<{ id:
 
   const conjunto = await buscarConjunto(id)
   const pecas = conjunto ? await pecasDoConjunto(conjunto) : []
-  const disponivel = !!conjunto && pecas.length > 1
+  const disponivel = !!conjunto && pecas.length > 1 && coresEmComum(pecas)
 
   const marca = normalizarMarca(pecas[0]?.marca)
   const baseParams: Params = marca === 'TODOS' ? {} : { marca }
