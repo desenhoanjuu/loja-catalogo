@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import styles from './Rodape.module.css'
-import { supabase, urlDaMarca } from '../lib/catalogo'
+import { supabase, urlArquivoPainel, urlDaMarca } from '../lib/catalogo'
 
 const MARCAS = ['AISHTY', "WE'RE THE BASIC", 'VASPAC']
 const ENDERECO_MAPA =
@@ -13,7 +13,7 @@ export default async function Rodape() {
   const { data } = await supabase.from('marcas_config').select('chave, logo_url')
   const logos: Record<string, string | null> = {}
   data?.forEach((m) => {
-    logos[String(m.chave).toUpperCase()] = m.logo_url
+    logos[String(m.chave).toUpperCase()] = urlArquivoPainel(m.logo_url)
   })
 
   return (

@@ -37,6 +37,22 @@ export function ehVisivelNoSite(p: Produto | null | undefined): boolean {
 }
 
 // ==========================================
+// ARQUIVOS DO PAINEL NO CLOUDFLARE (banners e logos)
+// O painel salva só o caminho ("banners/banner_123.webp"). Registros antigos podem ter um
+// endereço completo com o domínio errado: nesses casos, o caminho é reaproveitado com o
+// endereço certo (NEXT_PUBLIC_R2_URL). Links de outros sites continuam como estão.
+// ==========================================
+export function urlArquivoPainel(valor: string | null | undefined): string | null {
+  if (!valor) return null
+  const base = (process.env.NEXT_PUBLIC_R2_URL || '').replace(/\/+$/, '')
+  const texto = String(valor).trim()
+  if (!/^https?:\/\//i.test(texto)) return base ? `${base}/${texto.replace(/^\/+/, '')}` : null
+  const caminho = texto.match(/^https?:\/\/[^/]+\/((?:banners|logos)\/.+)$/i)
+  if (caminho && base) return `${base}/${caminho[1]}`
+  return texto
+}
+
+// ==========================================
 // MARCAS
 // ==========================================
 export function normalizarMarca(marca?: string | null): string {
@@ -243,7 +259,7 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
 
   const mapaLogos: Record<string, ConfigMarca> = {}
   marcasRaw?.forEach((m) => {
-    mapaLogos[String(m.chave).toUpperCase()] = m
+    mapaLogos[String(m.chave).toUpperCase()] = { ...m, logo_url: urlArquivoPainel(m.logo_url) }
   })
 
   // Lê em páginas de 1000 (limite do Supabase) para não perder filtros

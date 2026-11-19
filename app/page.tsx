@@ -14,6 +14,7 @@ import {
   carregarEstrutura,
   montarUrlFiltro,
   organizarVitrine,
+  urlArquivoPainel,
   normalizarMarca,
   urlDaMarca,
 } from './lib/catalogo'
@@ -41,7 +42,9 @@ export default async function Vitrine({
     buscarProdutosVitrine(marca, params),
   ])
 
-  const banners = (bannersRaw || []) as BannerItem[]
+  const banners = ((bannersRaw || []) as BannerItem[])
+    .map((b) => ({ ...b, imagem_url: urlArquivoPainel(b.imagem_url) || '' }))
+    .filter((b) => b.imagem_url)
   // Peças sempre sozinhas nas seções delas; os conjuntos ganham uma seção própria
   const itens: ItemVitrine[] = produtos.map((produto) => ({ tipo: 'produto', produto }))
   const conjuntos = await conjuntosDaVitrine(produtos)
