@@ -2,7 +2,16 @@ import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
-import { Conjunto, Produto, capaDoItem, carregarConfigSite, normalizarTexto, pastasDeCor, rotuloPeca } from '../lib/catalogo'
+import {
+  Conjunto,
+  Produto,
+  capaDoItem,
+  carregarConfigSite,
+  coresDisponiveis,
+  normalizarTexto,
+  pastasDeCor,
+  rotuloPeca,
+} from '../lib/catalogo'
 
 interface Props {
   produto: Produto
@@ -18,7 +27,9 @@ export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, 
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
   const { capa, hover, qualidade, peca: pecaComFoto } = capaDoItem(ehConjunto ? conjunto! : [produto], r2BaseUrl, ehConjunto ? conjuntoInfo : null)
-  const totalCores = pastasDeCor(pecaComFoto.fotos).length
+  // Quantas cores estão à venda (no conjunto, as que todas as peças têm); sem dados, conta as pastas
+  const disponiveis = coresDisponiveis(ehConjunto ? conjunto! : [produto])
+  const totalCores = disponiveis ? disponiveis.length : pastasDeCor(pecaComFoto.fotos).length
   const titulo = produto.descricao || `Referência ${produto.referencia}`
   const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade
   const colecao = ehConjunto ? conjunto![0].colecao : produto.colecao

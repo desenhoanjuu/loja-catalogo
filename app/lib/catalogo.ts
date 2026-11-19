@@ -166,11 +166,37 @@ export interface CapaCard {
 // Escolhe a foto do card: cor escolhida no painel ou, no automático,
 // a cor com foto de frente, evitando preto/branco e preferindo a que tem costas.
 // O hover só mostra as costas; se não houver costas, a imagem não troca.
+// Mesma regra de comparação de nomes que a página do produto usa para achar a pasta da cor
+export function combinaCor(a: string, b: string) {
+  if (!a || !b) return false
+  return a === b || a.startsWith(b) || b.startsWith(a) || (Math.min(a.length, b.length) >= 3 && (a.endsWith(b) || b.endsWith(a)))
+}
+
+// Cores com caixa disponível (com estoque ou em programação). Num conjunto, só as cores que
+// TODAS as peças têm. null = sem dados de caixas ainda (não restringe nada).
+export function coresDisponiveis(pecas: Produto[]): string[] | null {
+  const chavesPorPeca = pecas
+    .map((p) => {
+      const caixas = Array.isArray(p.caixas) ? p.caixas : []
+      if (caixas.length === 0) return null
+      return caixas
+        .filter((cx: Produto) => /^[A-Za-z]+$/.test(String(cx.caixa || '').trim()))
+        .filter((cx: Produto) => !cx.esgotada || cx.estoque > 0 || cx.programacao)
+        .map((cx: Produto) => (cx.cores || []).map((c: string) => normalizarTexto(c)).sort().join('+'))
+        .filter(Boolean) as string[]
+    })
+    .filter((c): c is string[] => c !== null)
+  if (chavesPorPeca.length === 0) return null
+  const comuns = chavesPorPeca[0].filter((k) => chavesPorPeca.every((lista) => lista.includes(k)))
+  return Array.from(new Set(comuns.flatMap((k) => k.split('+'))))
+}
+
 export function escolherCapa(
   fotos: Record<string, string[]> | null | undefined,
   referencia: string,
   r2BaseUrl: string,
-  corCapa?: string | null
+  corCapa?: string | null,
+  permitidas?: string[] | null // cores com caixa disponível; a capa só sai delas
 ): CapaCard {
   const vazio: CapaCard = { capa: null, hover: null, qualidade: 4, manual: false }
   if (!fotos) return vazio
@@ -178,6 +204,12 @@ export function escolherCapa(
   let candidatas = pastasDeCor(fotos)
   if (candidatas.length === 0) candidatas = Object.keys(fotos).filter((k) => (fotos[k]?.length ?? 0) > 0)
   if (candidatas.length === 0) return vazio
+
+  // Só cores que estão à venda (se nenhuma pasta bater, usa as que houver)
+  if (permitidas && permitidas.length > 0) {
+    const daVenda = candidatas.filter((p) => permitidas.some((c) => combinaCor(normalizarTexto(p), c)))
+    if (daVenda.length > 0) candidatas = daVenda
+  }
 
   const info = candidatas.map((pasta, indice) => {
     const lista = ordenarFotos(fotos[pasta])
@@ -231,8 +263,16 @@ export function capaDoItem(
   r2BaseUrl: string,
   conjunto?: Conjunto | null
 ): CapaCard & { peca: Produto } {
-  if (conjunto && conjunto.fotos.length > 0) {
-    const lista = [...conjunto.fotos].sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo))
+  const permitidas = coresDisponiveis(pecas)
+
+  // Fotos do conjunto: só as das cores à venda (ou enviadas no painel como "todas as cores")
+  const fotosConjunto = (conjunto?.fotos || []).filter((f) =>
+    f.cor
+      ? !permitidas || permitidas.some((c) => combinaCor(normalizarTexto(f.cor!), c))
+      : f.arquivo.includes('_conjunto_')
+  )
+  if (conjunto && fotosConjunto.length > 0) {
+    const lista = [...fotosConjunto].sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo))
     const costas = lista.find((f) => tipoDaFoto(f.arquivo) === 1)
     const capa = lista.find((f) => f !== costas) || lista[0]
     return {
@@ -243,7 +283,7 @@ export function capaDoItem(
       manual: false,
     }
   }
-  const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa) }))
+  const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa, permitidas) }))
   return opcoes.find((o) => o.manual) || [...opcoes].sort((a, b) => a.qualidade - b.qualidade)[0]
 }
 
