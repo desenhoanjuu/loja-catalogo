@@ -2,7 +2,7 @@ import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
-import { Conjunto, Produto, capaDoItem, pastasDeCor, rotuloPeca } from '../lib/catalogo'
+import { Conjunto, Produto, capaDoItem, normalizarTexto, pastasDeCor, rotuloPeca } from '../lib/catalogo'
 
 interface Props {
   produto: Produto
@@ -21,6 +21,14 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjun
   const titulo = produto.descricao || `Referência ${produto.referencia}`
   const novidade = ehConjunto ? conjunto!.some((p) => p.novidade) : produto.novidade
   const colecao = ehConjunto ? conjunto![0].colecao : produto.colecao
+
+  // Etiqueta da foto: campanha promocional tem prioridade sobre a coleção.
+  // O campo campanha pode ter várias ("VERAO 2027, PROMOCIONAL"): mostra só a promocional.
+  const campanhaPromocional = (ehConjunto ? conjunto! : [produto])
+    .flatMap((p) => String(p.campanha || '').split(','))
+    .map((c) => c.trim())
+    .find((c) => normalizarTexto(c).includes('promo'))
+  const etiqueta = campanhaPromocional || colecao
 
   return (
     <Link
@@ -45,7 +53,7 @@ export default function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjun
         )}
 
         {novidade && <span className={styles.badgeNovidade}>Novidade</span>}
-        {colecao && <span className={styles.badgeColecao}>{colecao}</span>}
+        {etiqueta && <span className={styles.badgeColecao}>{etiqueta}</span>}
         {totalCores > 1 && <span className={styles.badgeCores}>{totalCores} cores</span>}
       </div>
 
