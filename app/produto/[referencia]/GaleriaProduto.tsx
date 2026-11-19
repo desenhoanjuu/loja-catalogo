@@ -350,12 +350,25 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
           tipoDaFoto(decodeURIComponent(b.url.split('/').pop() || ''))
       )
     if (doConjunto.length === 0) return c
+    // Foto do conjunto copiada de uma peça ("232298_frente_preto.webp" é cópia de
+    // "232298/frente_preto.webp"): a original da peça não aparece de novo
+    const originais = new Set(
+      doConjunto
+        .map((f) => {
+          const nome = decodeURIComponent(f.url.split('/').pop() || '')
+          const m = nome.match(/^([^_]+)_(.+)$/)
+          return m && pecas.some((p) => p.referencia === m[1])
+            ? `${r2BaseUrl}/${m[1]}/${encodeURIComponent(m[2])}`
+            : ''
+        })
+        .filter(Boolean)
+    )
     // A miniatura da caixa só usa foto do conjunto que tenha a cor dela; foto "de todas as cores"
     // entra na galeria, mas não vira miniatura (senão todas as caixas ficam com a mesma foto)
     const daCor = doConjunto.find((f) => !!f.cor)
     return {
       ...c,
-      fotos: Array.from(new Set([...doConjunto.map((f) => f.url), ...c.fotos])),
+      fotos: Array.from(new Set([...doConjunto.map((f) => f.url), ...c.fotos.filter((u) => !originais.has(u))])),
       capas: daCor ? [daCor.url] : c.capas.length > 0 ? c.capas : [doConjunto[0].url],
     }
   })
