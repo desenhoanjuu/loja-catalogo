@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import Rodape from './componentes/Rodape'
 
 // Sans-serif neutra no estilo Helvetica, usada em todo o site
 const inter = Inter({
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={inter.variable}>
       <body style={{ margin: 0, padding: 0 }}>
         {children}
+        <Rodape />
       </body>
     </html>
   )

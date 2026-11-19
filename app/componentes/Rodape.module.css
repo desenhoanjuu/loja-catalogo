@@ -1,0 +1,150 @@
+/* Rodapé: logos das marcas, endereço do showroom e registro da marca */
+.rodape {
+  margin-top: 64px;
+  background-color: var(--surface);
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.conteudo {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 44px 28px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+/* AISHTY | WE'RE THE BASIC | VASPAC */
+.marcas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  row-gap: 16px;
+}
+
+.itemMarca {
+  display: inline-flex;
+  align-items: center;
+}
+
+.separador {
+  display: inline-block;
+  width: 1px;
+  height: 28px;
+  margin: 0 28px;
+  background-color: var(--ink-muted);
+  opacity: 0.5;
+}
+
+.linkMarca {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.linkMarca:hover {
+  opacity: 1;
+}
+
+.logoMarca {
+  height: 30px;
+  width: auto;
+  max-width: 170px;
+  object-fit: contain;
+  display: block;
+}
+
+.nomeMarca {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.colunas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.showroom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-style: normal;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.tituloBloco {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.linkMapa {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.linkMapa:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.registro {
+  margin: 0;
+  max-width: 460px;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .conteudo {
+    padding: 36px 16px 28px;
+    gap: 28px;
+  }
+
+  .separador {
+    margin: 0 16px;
+    height: 22px;
+  }
+
+  .logoMarca {
+    height: 24px;
+    max-width: 120px;
+  }
+
+  .colunas {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .showroom {
+    align-items: center;
+  }
+
+  .registro {
+    text-align: center;
+  }
+}
