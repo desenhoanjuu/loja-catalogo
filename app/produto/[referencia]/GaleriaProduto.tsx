@@ -338,9 +338,9 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
       // Amostra de cor vem das peças; se alguma foi copiada para o conjunto, não repete
       .filter((f) => tipoDaFoto(decodeURIComponent(f.url.split('/').pop() || '')) !== 3)
       .filter((f) => {
-        // Foto sem cor: só entra se o conjunto tem uma opção só, ou se foi enviada no painel como
-        // "Todas as cores". Fotos gerais copiadas da peça (costas.jpg, modelo.jpg) não se espalham.
-        if (!f.cor) return coresBase.length === 1 || decodeURIComponent(f.url).includes('_conjunto_')
+        // Foto sem cor: só entra se foi enviada no painel como "Todas as cores".
+        // Fotos gerais copiadas da peça (costas.jpg, modelo.jpg) nunca entram.
+        if (!f.cor) return decodeURIComponent(f.url).includes('_conjunto_')
         const n = normalizar(f.cor)
         return c.cores.some((x) => x === n || x.startsWith(n) || n.startsWith(x))
       })
