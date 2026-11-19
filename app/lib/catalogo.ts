@@ -272,15 +272,44 @@ export function capaDoItem(
       : f.arquivo.includes('_conjunto_')
   )
   if (conjunto && fotosConjunto.length > 0) {
-    const lista = [...fotosConjunto].sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo))
-    const costas = lista.find((f) => tipoDaFoto(f.arquivo) === 1)
-    const capa = lista.find((f) => f !== costas) || lista[0]
+    // Mesma hierarquia das peças: cor com frente, evitando preto/branco, preferindo a que tem costas.
+    // Frente e costas (hover) saem sempre da mesma cor.
+    const grupos = new Map<string, FotoConjunto[]>()
+    fotosConjunto.forEach((f) => {
+      const chave = f.cor ? normalizarTexto(f.cor) : ''
+      grupos.set(chave, [...(grupos.get(chave) || []), f])
+    })
+    const corDoPainel = pecas.map((p) => (p.cor_capa ? normalizarTexto(p.cor_capa) : '')).find(Boolean) || ''
+    const info = Array.from(grupos.entries()).map(([cor, lista], indice) => {
+      const ordenada = [...lista].sort((a, b) => tipoDaFoto(a.arquivo) - tipoDaFoto(b.arquivo))
+      return {
+        indice,
+        manual: !!corDoPainel && !!cor && combinaCor(cor, corDoPainel),
+        frente: ordenada.find((f) => tipoDaFoto(f.arquivo) === 0),
+        costas: ordenada.find((f) => tipoDaFoto(f.arquivo) === 1),
+        outra: ordenada.find((f) => tipoDaFoto(f.arquivo) !== 1),
+        neutra: !!cor && ehCorNeutra(cor),
+        semCor: !cor,
+      }
+    })
+    const escolhida =
+      info.find((g) => g.manual) ||
+      [...info].sort(
+        (a, b) =>
+          Number(!!b.frente) - Number(!!a.frente) ||
+          Number(a.semCor) - Number(b.semCor) ||
+          Number(a.neutra) - Number(b.neutra) ||
+          Number(!!b.costas) - Number(!!a.costas) ||
+          a.indice - b.indice
+      )[0]
+    const capa = escolhida.frente || escolhida.outra || escolhida.costas!
+    const hover = escolhida.costas && escolhida.costas !== capa ? escolhida.costas : null
     return {
       peca: pecas[0],
       capa: urlFotoConjunto(r2BaseUrl, conjunto.id, capa.arquivo),
-      hover: costas && costas !== capa ? urlFotoConjunto(r2BaseUrl, conjunto.id, costas.arquivo) : null,
-      qualidade: costas && costas !== capa ? 0 : 1,
-      manual: false,
+      hover: hover ? urlFotoConjunto(r2BaseUrl, conjunto.id, hover.arquivo) : null,
+      qualidade: hover ? 0 : escolhida.frente ? 1 : 2,
+      manual: escolhida.manual,
     }
   }
   const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa, permitidas) }))
