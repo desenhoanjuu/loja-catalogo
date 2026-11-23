@@ -54,6 +54,33 @@ export function precoUnitario(
   return aplicarAjuste(base, ctx.regra)
 }
 
+// Caixa usada no card da vitrine: a primeira caixa que aparece no site (letra válida, com estoque
+// ou em programação). Devolve o preço por peça e o valor da caixa para quem está vendo.
+export function precoDoCard(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  p: Record<string, any>,
+  ctx: ContextoPreco
+): { peca: number; caixa: number | null; pecas: number | null } | null {
+  const caixas = (Array.isArray(p.caixas) ? p.caixas : []) as {
+    caixa?: string
+    pecas?: number
+    estoque?: number
+    esgotada?: boolean
+    programacao?: boolean
+    preco_pc?: number
+  }[]
+  const cx = caixas.find(
+    (c) =>
+      /^[A-Za-z]+$/.test(String(c.caixa || '').trim()) &&
+      (!c.esgotada || (c.estoque || 0) > 0 || !!c.programacao) &&
+      (c.pecas || 0) > 0
+  )
+  const peca = precoUnitario(p.referencia, cx?.preco_pc || p.preco_peca, ctx)
+  if (!peca) return null
+  const pecas = cx?.pecas || null
+  return { peca, caixa: pecas ? Math.round(peca * pecas * 100) / 100 : null, pecas }
+}
+
 export function formatarReal(valor: number | null | undefined): string {
   if (valor === null || valor === undefined || Number.isNaN(valor)) return ''
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

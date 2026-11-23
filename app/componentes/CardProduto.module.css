@@ -29,9 +29,19 @@
   background-color: #10b981;
 }
 
-/* Preço (só quando liberado para quem está vendo) */
+/* Preço (só quando liberado para quem está vendo): caixa em destaque, peça menor embaixo */
+.blocoPreco {
+  margin-top: 6px;
+}
+
+.precoPecaCard {
+  margin: 1px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+
 .precoCard {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: var(--fs-md);
   font-weight: 700;
   color: var(--ink);

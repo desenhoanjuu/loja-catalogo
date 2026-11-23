@@ -619,10 +619,11 @@
 }
 
 .precoDestaque {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
   margin: 4px 0 14px;
+}
+
+.precoDestaque p {
+  margin: 0;
 }
 
 .precoDestaque strong {
@@ -635,4 +636,15 @@
 .precoDestaque span {
   font-size: var(--fs-sm);
   color: var(--ink-muted);
+}
+
+/* Preço por peça: menor e mais claro, embaixo do valor da caixa */
+.precoPecaPequeno {
+  font-size: var(--fs-xs) !important;
+  color: var(--ink-muted) !important;
+  font-weight: 400;
+}
+
+.precoDestaque .precoPecaPequeno {
+  margin-top: 2px;
 }

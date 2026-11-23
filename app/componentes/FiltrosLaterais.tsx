@@ -95,7 +95,7 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
 
       {opcoesPreco && opcoesPreco.length > 0 && (
         <div className={styles.grupoFiltro}>
-          <p className={styles.tituloGrupoFiltro}>Preço</p>
+          <p className={styles.tituloGrupoFiltro}>Preço por peça</p>
           <div className={styles.listaOpcoesFiltro}>
             {opcoesPreco.map(({ centavos, quantidade }) => {
               const escolhidos = String(params.preco || '').split('_').filter(Boolean)

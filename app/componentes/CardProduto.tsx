@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
-import { contextoPreco, formatarReal, precoUnitario } from '../lib/precos'
+import { contextoPreco, formatarReal, precoDoCard } from '../lib/precos'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
 import {
@@ -25,7 +25,7 @@ interface Props {
 export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjuntoInfo }: Props) {
   const config = await carregarConfigSite()
   const ctxPreco = await contextoPreco()
-  const preco = (p: Produto) => precoUnitario(p.referencia, p.preco_peca, ctxPreco)
+  const preco = (p: Produto) => precoDoCard(p, ctxPreco)
   const ehConjunto = !!conjunto && conjunto.length > 1
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
@@ -87,7 +87,9 @@ export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, 
                     title={temPE ? 'Pronta entrega' : 'Sem estoque'}
                   />
                   {rotuloPeca(p)}
-                  {preco(p) ? <span className={local.precoPeca}>{formatarReal(preco(p))}</span> : null}
+                  {preco(p) ? (
+                    <span className={local.precoPeca}>{formatarReal(preco(p)!.caixa ?? preco(p)!.peca)}</span>
+                  ) : null}
                 </li>
               )
             })}
@@ -100,9 +102,15 @@ export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, 
           </p>
           <h2 className={styles.cardTitulo}>{titulo}</h2>
           {preco(produto) ? (
-            <p className={local.precoCard}>
-              {formatarReal(preco(produto))} <span>/ peça</span>
-            </p>
+            <div className={local.blocoPreco}>
+              <p className={local.precoCard}>
+                {formatarReal(preco(produto)!.caixa ?? preco(produto)!.peca)}
+                <span>{preco(produto)!.caixa ? ' a caixa' : ' por peça'}</span>
+              </p>
+              {preco(produto)!.caixa ? (
+                <p className={local.precoPecaCard}>{formatarReal(preco(produto)!.peca)} por peça</p>
+              ) : null}
+            </div>
           ) : null}
         </>
       )}

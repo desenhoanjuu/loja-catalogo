@@ -546,19 +546,39 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
           {ehConjunto ? `Códigos: ${pecas.map((p) => p.referencia).join(' e ')}` : `Código: ${principal.referencia}`}
         </p>
 
-        {/* Preço (só aparece se estiver liberado para quem está vendo) */}
-        {!ehConjunto && principal.precoPeca ? (
-          <p className={styles.precoDestaque}>
-            <strong>{real(principal.precoPeca)}</strong>
-            <span>por peça</span>
-          </p>
-        ) : null}
-        {ehConjunto && pecas.every((p) => p.precoPeca) ? (
-          <p className={styles.precoDestaque}>
-            <strong>{real(pecas.reduce((soma, p) => soma + (p.precoPeca || 0), 0))}</strong>
-            <span>o conjunto (soma de uma peça de cada)</span>
-          </p>
-        ) : null}
+        {/* Preço (só aparece se estiver liberado para quem está vendo).
+            Destaque = valor da caixa selecionada; embaixo, menor, o preço por peça. */}
+        {(() => {
+          const infos = pecas.map((p) => corAtual?.porPeca[p.referencia])
+          const comCaixa = infos.every((i) => i?.preco && i?.pecas)
+          if (comCaixa && infos.length > 0) {
+            const totalCaixas = infos.reduce((soma, i) => soma + i!.preco! * i!.pecas!, 0)
+            return (
+              <div className={styles.precoDestaque}>
+                <p>
+                  <strong>{real(totalCaixas)}</strong>
+                  <span>{ehConjunto ? ' as caixas do conjunto nesta cor' : ` a caixa com ${infos[0]!.pecas} peças`}</span>
+                </p>
+                <p className={styles.precoPecaPequeno}>
+                  {ehConjunto
+                    ? pecas.map((p, i) => `${rotuloCurto(p)}: ${real(infos[i]!.preco!)} por peça`).join(' · ')
+                    : `${real(infos[0]!.preco!)} por peça`}
+                </p>
+              </div>
+            )
+          }
+          if (!ehConjunto && principal.precoPeca) {
+            return (
+              <div className={styles.precoDestaque}>
+                <p>
+                  <strong>{real(principal.precoPeca)}</strong>
+                  <span> por peça</span>
+                </p>
+              </div>
+            )
+          }
+          return null
+        })()}
 
         {ehConjunto ? (
           <div className={styles.listaPecasConjunto}>
@@ -657,8 +677,16 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
                     Disponibilidade: <strong>{rotulo} {info?.caixa ? `(CX-${info.caixa})` : ''}</strong>
                     {info?.preco ? (
                       <span className={styles.linhaPreco}>
-                        <strong>{real(info.preco)}</strong> por peça
-                        {info.pecas ? ` · caixa com ${info.pecas}: ${real(info.preco * info.pecas)}` : ''}
+                        {info.pecas ? (
+                          <>
+                            <strong>{real(info.preco * info.pecas)}</strong> a caixa
+                            <span className={styles.precoPecaPequeno}> · {real(info.preco)} por peça</span>
+                          </>
+                        ) : (
+                          <>
+                            <strong>{real(info.preco)}</strong> por peça
+                          </>
+                        )}
                       </span>
                     ) : null}
                   </span>
