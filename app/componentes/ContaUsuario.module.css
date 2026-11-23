@@ -1,0 +1,44 @@
+.conta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.linkConta {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.linkConta:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.botaoSair {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.botaoSair:hover {
+  color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .conta {
+    order: 4;
+    width: 100%;
+    justify-content: flex-end;
+    padding-bottom: 10px;
+  }
+}

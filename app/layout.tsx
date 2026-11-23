@@ -14,6 +14,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Catálogo de Produtos',
   description: 'Apresentação de coleções e referências',
+  // Site com login: não aparece no Google
+  robots: { index: false, follow: false },
 }
 
 export default function RootLayout({

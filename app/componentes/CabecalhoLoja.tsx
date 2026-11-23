@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
 import RolarMenuAtivo from './RolarMenuAtivo'
+import conta from './ContaUsuario.module.css'
+import { lerSessao } from '../lib/sessao-servidor'
+import { sair } from '../entrar/acoes'
 import {
   ABAS_MARCAS,
   EstruturaCatalogo,
@@ -16,7 +19,12 @@ interface Props {
   menuTodasAtivo: boolean
 }
 
-export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo }: Props) {
+function dataCurta(segundos: number) {
+  return new Date(segundos * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })
+}
+
+export default async function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo }: Props) {
+  const sessao = await lerSessao()
   const ehTodos = marca === 'TODOS'
   const baseParamsAba: Params = ehTodos ? {} : { marca }
   const { mapaLogos, mapaMenus, departamentos, colecoes, campanhas } = estrutura
@@ -56,6 +64,19 @@ export default function CabecalhoLoja({ marca, estrutura, params, menuTodasAtivo
               className={styles.inputBusca}
             />
           </form>
+
+          {sessao && (
+            <div className={conta.conta}>
+              {sessao.tipo === 'equipe' ? (
+                <Link href="/acessos" className={conta.linkConta}>Acessos de clientes</Link>
+              ) : (
+                <span>Acesso válido até {dataCurta(sessao.exp)}</span>
+              )}
+              <form action={sair}>
+                <button type="submit" className={conta.botaoSair}>Sair</button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
 
