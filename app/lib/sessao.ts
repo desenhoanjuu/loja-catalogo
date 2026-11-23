@@ -8,6 +8,8 @@ export interface Sessao {
   id: string // equipe: id do usuário; cliente: id do acesso temporário
   nome: string // equipe: e-mail; cliente: nome do cliente
   exp: number // validade (segundos desde 1970)
+  // Cliente: preço que o vendedor liberou no código (sem isso, o cliente não vê preço)
+  preco?: { tabela: 'original' | 'promocional'; ajuste: number } | null
 }
 
 const codificar = new TextEncoder()

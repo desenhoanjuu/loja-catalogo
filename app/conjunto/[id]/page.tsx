@@ -17,6 +17,7 @@ import {
   urlFotoConjunto,
 } from '../../lib/catalogo'
 import { produtoParaPeca } from '../../lib/pecas'
+import { contextoPreco } from '../../lib/precos'
 
 export const revalidate = 0
 
@@ -27,6 +28,7 @@ export default async function PaginaConjunto({ params }: { params: Promise<{ id:
 
   const conjunto = await buscarConjunto(id)
   const pecas = conjunto ? await pecasDoConjunto(conjunto) : []
+  const ctxPreco = await contextoPreco()
   const disponivel = !!conjunto && pecas.length > 1 && coresEmComum(pecas)
 
   const marca = normalizarMarca(pecas[0]?.marca)
@@ -74,7 +76,7 @@ export default async function PaginaConjunto({ params }: { params: Promise<{ id:
                 </nav>
 
                 <GaleriaProduto
-                  pecas={pecas.map(produtoParaPeca)}
+                  pecas={pecas.map((p) => produtoParaPeca(p, ctxPreco))}
                   r2BaseUrl={r2BaseUrl}
                   fotosConjunto={fotosConjunto}
                 />

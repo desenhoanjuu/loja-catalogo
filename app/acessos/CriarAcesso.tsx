@@ -29,6 +29,7 @@ function formatarData(iso?: string) {
 export default function CriarAcesso() {
   const [estado, acao, enviando] = useActionState(criarAcesso, VAZIO)
   const [copiado, setCopiado] = useState(false)
+  const [mostrarPreco, setMostrarPreco] = useState(false)
 
   const mensagem = estado.codigo
     ? `Olá, ${estado.cliente}! Segue o seu acesso ao nosso catálogo:\n${estado.link}\n\n` +
@@ -66,6 +67,38 @@ export default function CriarAcesso() {
         <button type="submit" className={`${styles.botao} ${local.botaoGerar}`} disabled={enviando}>
           {enviando ? 'Gerando...' : 'Gerar código'}
         </button>
+
+        {/* Preço: desligado por padrão */}
+        <div className={local.blocoPreco}>
+          <label className={local.chave}>
+            <input
+              type="checkbox"
+              name="mostrar_preco"
+              checked={mostrarPreco}
+              onChange={(e) => setMostrarPreco(e.target.checked)}
+            />
+            <span>Mostrar preço para este cliente</span>
+          </label>
+          {mostrarPreco && (
+            <div className={local.opcoesPreco}>
+              <label className={styles.campo}>
+                <span>Tabela</span>
+                <select name="tabela_preco" defaultValue="original">
+                  <option value="original">Preço original</option>
+                  <option value="promocional">Promocional (planilha publicada)</option>
+                </select>
+              </label>
+              <label className={styles.campo}>
+                <span>Ajuste (%)</span>
+                <input name="ajuste" type="number" step="0.5" min="-90" max="300" defaultValue="0" />
+              </label>
+              <p className={local.dicaPreco}>
+                Ajuste negativo dá desconto (ex.: -10). Na tabela promocional, as peças fora da planilha usam o
+                preço original.
+              </p>
+            </div>
+          )}
+        </div>
       </form>
       {estado.erro && <p className={styles.erro}>{estado.erro}</p>}
 

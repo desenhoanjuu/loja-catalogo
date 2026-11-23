@@ -17,6 +17,7 @@ export interface Peca {
   estoquePorCor: Record<string, number>
   corCapa?: string | null // cor escolhida no painel para a vitrine (abre a página nela)
   caixas?: Caixa[] | null // caixas reais do ERP (uma caixa pode ter mais de uma cor)
+  precoPeca?: number | null // preço por peça para quem está vendo (null = não mostra)
 }
 
 // Uma caixa do ERP, ex.: CX-22D com Print 416-1 + Print 416-2
@@ -28,6 +29,7 @@ export interface Caixa {
   esgotada: boolean
   programacao?: boolean // sem estoque físico ainda, com previsão de chegada
   previsao?: string | null
+  preco?: number | null // preço por peça desta caixa para quem está vendo (null = não mostra)
 }
 
 interface GaleriaProps {
@@ -41,7 +43,11 @@ interface InfoPecaNaCor {
   estoque: number
   programacao?: boolean
   previsao?: string | null
+  preco?: number | null // por peça
+  pecas?: number // peças por caixa (para o valor da caixa)
 }
+
+const real = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 // Uma opção do seletor: uma caixa (modo novo) ou uma cor (dados antigos)
 interface CorExibida {
@@ -292,6 +298,8 @@ function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
     estoque: cx.estoque,
     programacao: !!cx.programacao,
     previsao: cx.previsao || null,
+    preco: cx.preco ?? null,
+    pecas: cx.pecas,
   })
 
   if (!ehConjunto) {
@@ -538,12 +546,31 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
           {ehConjunto ? `Códigos: ${pecas.map((p) => p.referencia).join(' e ')}` : `Código: ${principal.referencia}`}
         </p>
 
+        {/* Preço (só aparece se estiver liberado para quem está vendo) */}
+        {!ehConjunto && principal.precoPeca ? (
+          <p className={styles.precoDestaque}>
+            <strong>{real(principal.precoPeca)}</strong>
+            <span>por peça</span>
+          </p>
+        ) : null}
+        {ehConjunto && pecas.every((p) => p.precoPeca) ? (
+          <p className={styles.precoDestaque}>
+            <strong>{real(pecas.reduce((soma, p) => soma + (p.precoPeca || 0), 0))}</strong>
+            <span>o conjunto (soma de uma peça de cada)</span>
+          </p>
+        ) : null}
+
         {ehConjunto ? (
           <div className={styles.listaPecasConjunto}>
             {pecas.map((p) => (
               <div key={p.referencia} className={styles.blocoPeca}>
                 <p className={styles.linhaResumoPeca}>{rotuloCurto(p)}</p>
                 <p className={styles.linhaDetalhe}>{p.descricao}</p>
+                {p.precoPeca ? (
+                  <p className={styles.linhaDetalhe}>
+                    <strong>Preço:</strong> {real(p.precoPeca)} por peça
+                  </p>
+                ) : null}
                 <p className={styles.linhaDetalhe}>
                   <strong>Grade:</strong> {p.grade || 'Não informada'}
                 </p>
@@ -628,6 +655,12 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
                 <div key={p.referencia} className={styles.boxDisponibilidade}>
                   <span>
                     Disponibilidade: <strong>{rotulo} {info?.caixa ? `(CX-${info.caixa})` : ''}</strong>
+                    {info?.preco ? (
+                      <span className={styles.linhaPreco}>
+                        <strong>{real(info.preco)}</strong> por peça
+                        {info.pecas ? ` · caixa com ${info.pecas}: ${real(info.preco * info.pecas)}` : ''}
+                      </span>
+                    ) : null}
                   </span>
                   {!info ? (
                     <span className={styles.badgeEsgotado}>{modoCaixas ? 'Não tem esta caixa' : 'Não tem nesta cor'}</span>

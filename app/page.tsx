@@ -4,6 +4,7 @@ import CabecalhoLoja from './componentes/CabecalhoLoja'
 import FiltrosLaterais from './componentes/FiltrosLaterais'
 import CardProduto from './componentes/CardProduto'
 import styles from './Vitrine.module.css'
+import { contextoPreco, formatarReal, precoUnitario } from './lib/precos'
 import secoesCss from './Secoes.module.css'
 import {
   ItemVitrine,
@@ -14,6 +15,7 @@ import {
   carregarEstrutura,
   montarUrlFiltro,
   organizarVitrine,
+  type Produto,
   urlArquivoPainel,
   normalizarMarca,
   urlDaMarca,
@@ -31,7 +33,7 @@ export default async function Vitrine({
 
   const marca = normalizarMarca(params.marca)
   const ehTodos = marca === 'TODOS'
-  const [estrutura, { data: bannersRaw }, produtos] = await Promise.all([
+  const [estrutura, { data: bannersRaw }, produtosEncontrados] = await Promise.all([
     carregarEstrutura(marca),
     supabase
       .from('banners')
@@ -41,6 +43,30 @@ export default async function Vitrine({
       .order('ordem', { ascending: true }),
     buscarProdutosVitrine(marca, params),
   ])
+
+  // Preço: só quando liberado para quem está vendo. O filtro "Preço" usa o mesmo valor mostrado no card
+  // (em centavos na URL: ?preco=4400_5990).
+  const ctxPreco = await contextoPreco()
+  const centavos = (p: Produto) => {
+    const v = precoUnitario(p.referencia, p.preco_peca, ctxPreco)
+    return v ? Math.round(v * 100) : 0
+  }
+  const contagemPrecos = new Map<number, number>()
+  if (ctxPreco.regra) {
+    produtosEncontrados.forEach((p) => {
+      const c = centavos(p)
+      if (c) contagemPrecos.set(c, (contagemPrecos.get(c) || 0) + 1)
+    })
+  }
+  const opcoesPreco = Array.from(contagemPrecos.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([valor, quantidade]) => ({ centavos: valor, quantidade }))
+  const precosEscolhidos = ctxPreco.regra
+    ? String(params.preco || '').split('_').map(Number).filter((n) => n > 0)
+    : []
+  const produtos = precosEscolhidos.length
+    ? produtosEncontrados.filter((p) => precosEscolhidos.includes(centavos(p)))
+    : produtosEncontrados
 
   const banners = ((bannersRaw || []) as BannerItem[])
     .map((b) => ({ ...b, imagem_url: urlArquivoPainel(b.imagem_url) || '' }))
@@ -61,6 +87,8 @@ export default async function Vitrine({
   if (params.pe === '1') filtrosAtivos.push({ chave: 'pe', label: 'Estoque', valor: 'Pronta Entrega' })
   if (params.prog === '1') filtrosAtivos.push({ chave: 'prog', label: 'Estoque', valor: 'Programação' })
   if (params.q) filtrosAtivos.push({ chave: 'q', label: 'Busca', valor: params.q })
+  if (precosEscolhidos.length)
+    filtrosAtivos.push({ chave: 'preco', label: 'Preço', valor: precosEscolhidos.map((c) => formatarReal(c / 100)).join(', ') })
 
   // Novidades no topo só na vitrine sem filtros; depois, as seções por departamento
   const secoes = organizarVitrine(itens, conjuntos, filtrosAtivos.length === 0)
@@ -99,6 +127,7 @@ export default async function Vitrine({
             estrutura={estrutura}
             params={params}
             temFiltroAtivo={filtrosAtivos.length > 0}
+            opcoesPreco={opcoesPreco}
           />
 
           <div>

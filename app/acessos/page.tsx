@@ -21,13 +21,20 @@ function formatarData(iso: string | null) {
   })
 }
 
+function descreverPreco(a: { mostrar_preco?: boolean; tabela_preco?: string | null; ajuste_percentual?: number | null }) {
+  if (!a.mostrar_preco) return 'Sem preço'
+  const tabela = a.tabela_preco === 'promocional' ? 'Promocional' : 'Original'
+  const ajuste = Number(a.ajuste_percentual) || 0
+  return ajuste ? `${tabela} ${ajuste > 0 ? '+' : ''}${String(ajuste).replace('.', ',')}%` : tabela
+}
+
 export default async function PaginaAcessos() {
   const sessao = await lerSessao()
   if (!sessao || sessao.tipo !== 'equipe') redirect('/')
 
   const { data: acessos, error } = await supabaseAdmin()
     .from('acessos_temporarios')
-    .select('id, cliente_nome, criado_por, criado_em, expira_em, revogado, ultimo_uso, usos')
+    .select('id, cliente_nome, criado_por, criado_em, expira_em, revogado, ultimo_uso, usos, mostrar_preco, tabela_preco, ajuste_percentual')
     .order('criado_em', { ascending: false })
     .limit(300)
 
@@ -73,6 +80,7 @@ export default async function PaginaAcessos() {
                 <tr>
                   <th>Cliente</th>
                   <th>Situação</th>
+                  <th>Preço</th>
                   <th>Válido até</th>
                   <th>Último uso</th>
                   <th>Criado por</th>
@@ -88,6 +96,7 @@ export default async function PaginaAcessos() {
                       <td>
                         <span className={`${local.selo} ${local[`selo_${s}`]}`}>{s}</span>
                       </td>
+                      <td>{descreverPreco(a)}</td>
                       <td>{formatarData(a.expira_em)}</td>
                       <td>
                         {formatarData(a.ultimo_uso)}

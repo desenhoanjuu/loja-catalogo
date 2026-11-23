@@ -124,7 +124,7 @@ export async function entrarCliente(_anterior: Resultado, form: FormData): Promi
   const banco = supabaseAdmin()
   const { data: acesso } = await banco
     .from('acessos_temporarios')
-    .select('id, cliente_nome, expira_em, revogado, usos')
+    .select('id, cliente_nome, expira_em, revogado, usos, mostrar_preco, tabela_preco, ajuste_percentual')
     .eq('codigo_hash', await hashCodigo(codigo))
     .maybeSingle()
 
@@ -143,6 +143,12 @@ export async function entrarCliente(_anterior: Resultado, form: FormData): Promi
     id: acesso.id,
     nome: acesso.cliente_nome,
     exp: Math.floor(expira.getTime() / 1000),
+    preco: acesso.mostrar_preco
+      ? {
+          tabela: acesso.tabela_preco === 'promocional' ? 'promocional' : 'original',
+          ajuste: Number(acesso.ajuste_percentual) || 0,
+        }
+      : null,
   })
   await gravarSessao(token, expira)
   redirect(destinoSeguro(form.get('volta')))
@@ -179,6 +185,14 @@ export async function criarAcesso(_anterior: AcessoCriado, form: FormData): Prom
   const dias = Math.min(Math.max(Number(form.get('dias') || 7), 1), 90)
   if (cliente.length < 2) return { erro: 'Digite o nome do cliente.' }
 
+  // Preço: desligado por padrão; ligado, usa a tabela escolhida e o ajuste em %
+  const mostrarPreco = form.get('mostrar_preco') === 'on'
+  const tabelaPreco = form.get('tabela_preco') === 'promocional' ? 'promocional' : 'original'
+  const ajuste = Number(String(form.get('ajuste') || '0').replace(',', '.'))
+  if (mostrarPreco && (!Number.isFinite(ajuste) || ajuste < -90 || ajuste > 300)) {
+    return { erro: 'O ajuste deve ficar entre -90% e +300%.' }
+  }
+
   const codigo = gerarCodigo()
   const expiraEm = new Date(Date.now() + dias * 24 * 3600 * 1000)
   const { error } = await supabaseAdmin()
@@ -188,6 +202,9 @@ export async function criarAcesso(_anterior: AcessoCriado, form: FormData): Prom
       cliente_nome: cliente,
       criado_por: sessao.nome,
       expira_em: expiraEm.toISOString(),
+      mostrar_preco: mostrarPreco,
+      tabela_preco: mostrarPreco ? tabelaPreco : null,
+      ajuste_percentual: mostrarPreco ? Math.round(ajuste * 100) / 100 : 0,
     })
   if (error) return { erro: `Não foi possível criar o acesso: ${error.message}` }
 

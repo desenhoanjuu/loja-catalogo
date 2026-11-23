@@ -8,6 +8,7 @@ interface Props {
   estrutura: EstruturaCatalogo
   params: Params // filtros ativos na URL (na página do produto vai só a marca)
   temFiltroAtivo: boolean
+  opcoesPreco?: { centavos: number; quantidade: number }[] // só quando o preço está liberado
   className?: string
 }
 
@@ -46,7 +47,7 @@ function GrupoFiltro({ titulo, opcoes, chave, params, extra, manterCaixa }: Grup
   )
 }
 
-export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAtivo, className }: Props) {
+export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAtivo, className, opcoesPreco }: Props) {
   const { mapaMenus, departamentos, colecoes, campanhas, arvoreTipos } = estrutura
 
   const grupos = params.dep
@@ -91,6 +92,30 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
           </Link>
         </div>
       </div>
+
+      {opcoesPreco && opcoesPreco.length > 0 && (
+        <div className={styles.grupoFiltro}>
+          <p className={styles.tituloGrupoFiltro}>Preço</p>
+          <div className={styles.listaOpcoesFiltro}>
+            {opcoesPreco.map(({ centavos, quantidade }) => {
+              const escolhidos = String(params.preco || '').split('_').filter(Boolean)
+              const ativo = escolhidos.includes(String(centavos))
+              const novos = ativo ? escolhidos.filter((c) => c !== String(centavos)) : [...escolhidos, String(centavos)]
+              return (
+                <Link
+                  key={centavos}
+                  href={montarUrlFiltro(params, { preco: novos.length ? novos.join('_') : undefined })}
+                  className={`${styles.opcaoFiltro} ${ativo ? styles.opcaoFiltroAtiva : ''}`}
+                >
+                  <span style={{ textTransform: 'none' }}>
+                    {(centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({quantidade})
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <GrupoFiltro titulo="Campanha" opcoes={campanhas} chave="campanha" params={params} />
       <GrupoFiltro titulo="Coleção" opcoes={colecoes} chave="colecao" params={params} />

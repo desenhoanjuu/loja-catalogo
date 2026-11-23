@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
+import { contextoPreco, formatarReal, precoUnitario } from '../lib/precos'
 import local from './CardProduto.module.css'
 import ImagemAjustavel from './ImagemAjustavel'
 import {
@@ -23,6 +24,8 @@ interface Props {
 
 export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, conjuntoInfo }: Props) {
   const config = await carregarConfigSite()
+  const ctxPreco = await contextoPreco()
+  const preco = (p: Produto) => precoUnitario(p.referencia, p.preco_peca, ctxPreco)
   const ehConjunto = !!conjunto && conjunto.length > 1
 
   // Capa: cor escolhida no painel ou escolha automática (frente, evitando preto/branco)
@@ -84,6 +87,7 @@ export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, 
                     title={temPE ? 'Pronta entrega' : 'Sem estoque'}
                   />
                   {rotuloPeca(p)}
+                  {preco(p) ? <span className={local.precoPeca}>{formatarReal(preco(p))}</span> : null}
                 </li>
               )
             })}
@@ -95,6 +99,11 @@ export default async function CardProduto({ produto, r2BaseUrl, meta, conjunto, 
             {meta ?? `${produto.marca ? `${produto.marca} • ` : ''}Ref: ${produto.referencia}`}
           </p>
           <h2 className={styles.cardTitulo}>{titulo}</h2>
+          {preco(produto) ? (
+            <p className={local.precoCard}>
+              {formatarReal(preco(produto))} <span>/ peça</span>
+            </p>
+          ) : null}
         </>
       )}
     </Link>

@@ -605,3 +605,34 @@
       gap: 24px 12px;
     }
   }
+/* Preço por peça e valor da caixa (só quando o preço está liberado para quem vê) */
+.linhaPreco {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+}
+
+.linhaPreco strong {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+
+.precoDestaque {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.precoDestaque strong {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.precoDestaque span {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}

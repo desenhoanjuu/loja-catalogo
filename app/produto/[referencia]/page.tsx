@@ -20,6 +20,7 @@ import {
   normalizarMarca,
 } from '../../lib/catalogo'
 import { produtoParaPeca } from '../../lib/pecas'
+import { contextoPreco } from '../../lib/precos'
 
 export const revalidate = 0
 
@@ -110,7 +111,7 @@ export default async function PaginaProduto({
                   <span className={styles.breadcrumbAtual}>Ref. {produto.referencia}</span>
                 </nav>
 
-                <GaleriaProduto pecas={[produtoParaPeca(produto)]} r2BaseUrl={r2BaseUrl} />
+                <GaleriaProduto pecas={[produtoParaPeca(produto, await contextoPreco())]} r2BaseUrl={r2BaseUrl} />
 
                 {conjuntos.length > 0 && (
                   <section className={styles.similares}>
