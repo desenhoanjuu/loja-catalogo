@@ -86,7 +86,7 @@ export async function entrarMaster(_anterior: Resultado, form: FormData): Promis
   const token = await assinarSessao({
     tipo: 'equipe',
     id: `master:${await impressaoMaster()}`,
-    nome: 'Acesso master',
+    nome: 'Acesso administrativo',
     exp: Math.floor(expira.getTime() / 1000),
   })
   await gravarSessao(token, expira)
@@ -199,6 +199,28 @@ export async function criarAcesso(_anterior: AcessoCriado, form: FormData): Prom
     link: `${await origemDoSite()}/entrar?codigo=${encodeURIComponent(codigo)}`,
     expiraEm: expiraEm.toISOString(),
   }
+}
+
+// Excluir do histórico: só acessos já encerrados (revogados ou vencidos)
+export async function excluirAcesso(form: FormData) {
+  const sessao = await lerSessao()
+  if (!sessao || sessao.tipo !== 'equipe') return
+  const id = String(form.get('id') || '')
+  if (!id) return
+  const banco = supabaseAdmin()
+  const { data } = await banco.from('acessos_temporarios').select('revogado, expira_em').eq('id', id).maybeSingle()
+  const encerrado = !!data && (data.revogado || new Date(data.expira_em).getTime() <= Date.now())
+  if (encerrado) await banco.from('acessos_temporarios').delete().eq('id', id)
+  revalidatePath('/acessos')
+}
+
+export async function limparEncerrados() {
+  const sessao = await lerSessao()
+  if (!sessao || sessao.tipo !== 'equipe') return
+  const banco = supabaseAdmin()
+  await banco.from('acessos_temporarios').delete().eq('revogado', true)
+  await banco.from('acessos_temporarios').delete().lte('expira_em', new Date().toISOString())
+  revalidatePath('/acessos')
 }
 
 export async function revogarAcesso(form: FormData) {

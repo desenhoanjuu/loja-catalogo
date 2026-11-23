@@ -4,7 +4,7 @@ import CriarAcesso from './CriarAcesso'
 import local from './Acessos.module.css'
 import { lerSessao } from '../lib/sessao-servidor'
 import { supabaseAdmin } from '../lib/supabase-admin'
-import { revogarAcesso, sair } from '../entrar/acoes'
+import { excluirAcesso, limparEncerrados, revogarAcesso, sair } from '../entrar/acoes'
 
 export const revalidate = 0
 export const metadata = { title: 'Acessos de clientes · Catálogo' }
@@ -34,6 +34,9 @@ export default async function PaginaAcessos() {
   const agora = Date.now()
   const situacao = (a: { revogado: boolean; expira_em: string }) =>
     a.revogado ? 'revogado' : new Date(a.expira_em).getTime() <= agora ? 'expirado' : 'ativo'
+  const encerrados = (acessos || []).filter((a) => situacao(a) !== 'ativo').length
+  // Nome antigo, de acessos criados antes da troca do texto
+  const quemCriou = (texto: string) => (texto === 'Acesso master' ? 'Acesso administrativo' : texto)
 
   return (
     <main className={local.pagina}>
@@ -41,7 +44,7 @@ export default async function PaginaAcessos() {
         <div>
           <Link href="/" className={local.voltar}>← Voltar ao catálogo</Link>
           <h1 className={local.titulo}>Acessos de clientes</h1>
-          <p className={local.sub}>Entrou como {sessao.nome}</p>
+          <p className={local.sub}>Entrou como {quemCriou(sessao.nome)}</p>
         </div>
         <form action={sair}>
           <button type="submit" className={local.botaoSair}>Sair</button>
@@ -51,7 +54,16 @@ export default async function PaginaAcessos() {
       <CriarAcesso />
 
       <div className={local.bloco}>
-        <h2 className={local.tituloBloco}>Acessos criados</h2>
+        <div className={local.cabecalhoBloco}>
+          <h2 className={local.tituloBloco}>Acessos criados</h2>
+          {encerrados > 0 && (
+            <form action={limparEncerrados}>
+              <button type="submit" className={local.botaoRevogar}>
+                Limpar encerrados ({encerrados})
+              </button>
+            </form>
+          )}
+        </div>
         {error && <p className={local.erroTabela}>Não foi possível carregar: {error.message}</p>}
         {!error && (!acessos || acessos.length === 0) && <p className={local.sub}>Nenhum acesso criado ainda.</p>}
         {acessos && acessos.length > 0 && (
@@ -81,12 +93,17 @@ export default async function PaginaAcessos() {
                         {formatarData(a.ultimo_uso)}
                         {a.usos ? ` (${a.usos}x)` : ''}
                       </td>
-                      <td>{a.criado_por}</td>
+                      <td>{quemCriou(a.criado_por)}</td>
                       <td>
-                        {s === 'ativo' && (
+                        {s === 'ativo' ? (
                           <form action={revogarAcesso}>
                             <input type="hidden" name="id" value={a.id} />
                             <button type="submit" className={local.botaoRevogar}>Revogar</button>
+                          </form>
+                        ) : (
+                          <form action={excluirAcesso}>
+                            <input type="hidden" name="id" value={a.id} />
+                            <button type="submit" className={local.botaoExcluir}>Excluir</button>
                           </form>
                         )}
                       </td>
