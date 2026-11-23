@@ -124,7 +124,7 @@ export async function entrarCliente(_anterior: Resultado, form: FormData): Promi
   const banco = supabaseAdmin()
   const { data: acesso } = await banco
     .from('acessos_temporarios')
-    .select('id, cliente_nome, expira_em, revogado, usos, mostrar_preco, tabela_preco, ajuste_percentual')
+    .select('id, cliente_nome, expira_em, revogado, usos, mostrar_preco, tabela_preco, ajuste_percentual, ajuste_valor')
     .eq('codigo_hash', await hashCodigo(codigo))
     .maybeSingle()
 
@@ -147,6 +147,7 @@ export async function entrarCliente(_anterior: Resultado, form: FormData): Promi
       ? {
           tabela: acesso.tabela_preco === 'promocional' ? 'promocional' : 'original',
           ajuste: Number(acesso.ajuste_percentual) || 0,
+          acrescimo: Number(acesso.ajuste_valor) || 0,
         }
       : null,
   })
@@ -169,6 +170,15 @@ export interface AcessoCriado extends Resultado {
   expiraEm?: string
 }
 
+// Lê números do jeito que o vendedor digita: "+3,00", "-2,50", "R$ 3", "1.234,50", "10%"
+function lerNumero(texto: string): number | null {
+  let t = texto.trim().replace(/R\$|%|\s/gi, '')
+  if (!t) return null
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+  const n = Number(t)
+  return Number.isFinite(n) ? n : null
+}
+
 const LETRAS_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // sem 0/O, 1/I/L, para não confundir
 
 function gerarCodigo(): string {
@@ -185,12 +195,22 @@ export async function criarAcesso(_anterior: AcessoCriado, form: FormData): Prom
   const dias = Math.min(Math.max(Number(form.get('dias') || 7), 1), 90)
   if (cliente.length < 2) return { erro: 'Digite o nome do cliente.' }
 
-  // Preço: desligado por padrão; ligado, usa a tabela escolhida e o ajuste em %
+  // Preço: desligado por padrão; ligado, usa a tabela escolhida e o ajuste (R$ por peça ou %)
   const mostrarPreco = form.get('mostrar_preco') === 'on'
   const tabelaPreco = form.get('tabela_preco') === 'promocional' ? 'promocional' : 'original'
-  const ajuste = Number(String(form.get('ajuste') || '0').replace(',', '.'))
-  if (mostrarPreco && (!Number.isFinite(ajuste) || ajuste < -90 || ajuste > 300)) {
-    return { erro: 'O ajuste deve ficar entre -90% e +300%.' }
+  const tipoAjuste = String(form.get('tipo_ajuste') || 'nenhum')
+  const valorAjuste = lerNumero(String(form.get('valor_ajuste') || ''))
+  let percentual = 0
+  let acrescimo = 0
+  if (mostrarPreco && tipoAjuste !== 'nenhum') {
+    if (valorAjuste === null) return { erro: 'Digite o ajuste como no exemplo: +3,00 ou -2,50.' }
+    if (tipoAjuste === 'percentual') {
+      if (valorAjuste < -90 || valorAjuste > 300) return { erro: 'A porcentagem deve ficar entre -90 e +300.' }
+      percentual = valorAjuste
+    } else {
+      if (Math.abs(valorAjuste) > 1000) return { erro: 'O valor por peça deve ficar entre -1.000,00 e +1.000,00.' }
+      acrescimo = valorAjuste
+    }
   }
 
   const codigo = gerarCodigo()
@@ -204,7 +224,8 @@ export async function criarAcesso(_anterior: AcessoCriado, form: FormData): Prom
       expira_em: expiraEm.toISOString(),
       mostrar_preco: mostrarPreco,
       tabela_preco: mostrarPreco ? tabelaPreco : null,
-      ajuste_percentual: mostrarPreco ? Math.round(ajuste * 100) / 100 : 0,
+      ajuste_percentual: mostrarPreco ? Math.round(percentual * 100) / 100 : 0,
+      ajuste_valor: mostrarPreco ? Math.round(acrescimo * 100) / 100 : 0,
     })
   if (error) return { erro: `Não foi possível criar o acesso: ${error.message}` }
 

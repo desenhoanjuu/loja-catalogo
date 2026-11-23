@@ -9,7 +9,7 @@ export interface Sessao {
   nome: string // equipe: e-mail; cliente: nome do cliente
   exp: number // validade (segundos desde 1970)
   // Cliente: preço que o vendedor liberou no código (sem isso, o cliente não vê preço)
-  preco?: { tabela: 'original' | 'promocional'; ajuste: number } | null
+  preco?: { tabela: 'original' | 'promocional'; ajuste: number; acrescimo?: number } | null
 }
 
 const codificar = new TextEncoder()

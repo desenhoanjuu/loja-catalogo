@@ -30,6 +30,7 @@ export default function CriarAcesso() {
   const [estado, acao, enviando] = useActionState(criarAcesso, VAZIO)
   const [copiado, setCopiado] = useState(false)
   const [mostrarPreco, setMostrarPreco] = useState(false)
+  const [tipoAjuste, setTipoAjuste] = useState('nenhum')
 
   const mensagem = estado.codigo
     ? `Olá, ${estado.cliente}! Segue o seu acesso ao nosso catálogo:\n${estado.link}\n\n` +
@@ -89,12 +90,31 @@ export default function CriarAcesso() {
                 </select>
               </label>
               <label className={styles.campo}>
-                <span>Ajuste (%)</span>
-                <input name="ajuste" type="number" step="0.5" min="-90" max="300" defaultValue="0" />
+                <span>Ajuste</span>
+                <select name="tipo_ajuste" value={tipoAjuste} onChange={(e) => setTipoAjuste(e.target.value)}>
+                  <option value="nenhum">Sem ajuste</option>
+                  <option value="valor">Valor por peça (R$)</option>
+                  <option value="percentual">Porcentagem (%)</option>
+                </select>
               </label>
+              {tipoAjuste !== 'nenhum' && (
+                <label className={styles.campo}>
+                  <span>{tipoAjuste === 'valor' ? 'Valor (R$ por peça)' : 'Porcentagem'}</span>
+                  <input
+                    name="valor_ajuste"
+                    inputMode="decimal"
+                    placeholder={tipoAjuste === 'valor' ? '+3,00' : '-10'}
+                    required
+                  />
+                </label>
+              )}
               <p className={local.dicaPreco}>
-                Ajuste negativo dá desconto (ex.: -10). Na tabela promocional, as peças fora da planilha usam o
-                preço original.
+                {tipoAjuste === 'valor'
+                  ? 'Ex.: +3,00 soma R$ 3,00 em cada peça; -2,50 dá R$ 2,50 de desconto por peça. A caixa acompanha.'
+                  : tipoAjuste === 'percentual'
+                    ? 'Ex.: -10 dá 10% de desconto; +5 aumenta 5%.'
+                    : 'O cliente vê o preço da tabela, sem mudança.'}{' '}
+                Na tabela promocional, as peças fora da planilha usam o preço original.
               </p>
             </div>
           )}

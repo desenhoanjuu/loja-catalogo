@@ -21,11 +21,21 @@ function formatarData(iso: string | null) {
   })
 }
 
-function descreverPreco(a: { mostrar_preco?: boolean; tabela_preco?: string | null; ajuste_percentual?: number | null }) {
+function descreverPreco(a: {
+  mostrar_preco?: boolean
+  tabela_preco?: string | null
+  ajuste_percentual?: number | null
+  ajuste_valor?: number | null
+}) {
   if (!a.mostrar_preco) return 'Sem preço'
   const tabela = a.tabela_preco === 'promocional' ? 'Promocional' : 'Original'
-  const ajuste = Number(a.ajuste_percentual) || 0
-  return ajuste ? `${tabela} ${ajuste > 0 ? '+' : ''}${String(ajuste).replace('.', ',')}%` : tabela
+  const pct = Number(a.ajuste_percentual) || 0
+  const valor = Number(a.ajuste_valor) || 0
+  if (valor) {
+    const reais = Math.abs(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return `${tabela} ${valor > 0 ? '+' : '-'}R$ ${reais}/peça`
+  }
+  return pct ? `${tabela} ${pct > 0 ? '+' : ''}${String(pct).replace('.', ',')}%` : tabela
 }
 
 export default async function PaginaAcessos() {
@@ -34,7 +44,7 @@ export default async function PaginaAcessos() {
 
   const { data: acessos, error } = await supabaseAdmin()
     .from('acessos_temporarios')
-    .select('id, cliente_nome, criado_por, criado_em, expira_em, revogado, ultimo_uso, usos, mostrar_preco, tabela_preco, ajuste_percentual')
+    .select('id, cliente_nome, criado_por, criado_em, expira_em, revogado, ultimo_uso, usos, mostrar_preco, tabela_preco, ajuste_percentual, ajuste_valor')
     .order('criado_em', { ascending: false })
     .limit(300)
 

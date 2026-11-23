@@ -108,7 +108,7 @@
 
 .opcoesPreco {
   display: grid;
-  grid-template-columns: 260px 120px 1fr;
+  grid-template-columns: 240px 190px 150px;
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -117,6 +117,7 @@
 }
 
 .dicaPreco {
+  grid-column: 1 / -1;
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--ink-muted);

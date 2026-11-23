@@ -8,6 +8,7 @@ import { supabaseAdmin } from './supabase-admin'
 export interface RegraPreco {
   tabela: 'original' | 'promocional'
   ajuste: number // em %, ex.: -10 = 10% de desconto
+  acrescimo?: number // em R$ por peça, ex.: 3 = soma R$ 3,00; -2.5 = desconta R$ 2,50
 }
 
 export interface ContextoPreco {
@@ -37,7 +38,8 @@ export const contextoPreco = cache(async (): Promise<ContextoPreco> => {
 })
 
 function aplicarAjuste(valor: number, regra: RegraPreco): number {
-  return Math.round(valor * (1 + (regra.ajuste || 0) / 100) * 100) / 100
+  const comPercentual = valor * (1 + (regra.ajuste || 0) / 100)
+  return Math.round((comPercentual + (regra.acrescimo || 0)) * 100) / 100
 }
 
 // Preço por peça de uma caixa (ou da referência, sem caixa). A planilha promocional vale para a
@@ -51,7 +53,8 @@ export function precoUnitario(
   const promo = ctx.regra.tabela === 'promocional' ? ctx.promocionais[String(referencia).toUpperCase()] : undefined
   const base = promo || Number(precoOriginal) || 0
   if (!base) return null
-  return aplicarAjuste(base, ctx.regra)
+  const final = aplicarAjuste(base, ctx.regra)
+  return final > 0 ? final : null // desconto maior que o preço: não mostra valor errado
 }
 
 // Caixa usada no card da vitrine: a primeira caixa que aparece no site (letra válida, com estoque
