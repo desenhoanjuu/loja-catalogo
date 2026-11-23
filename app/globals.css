@@ -70,3 +70,38 @@ body {
     scroll-behavior: auto !important;
   }
 }
+/* =========================================================
+   PROTEÇÃO DAS FOTOS (só para clientes com acesso temporário)
+   O <body> recebe data-protegido="sim" e a variável --marca-dagua.
+   ========================================================= */
+body[data-protegido] img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* celular: sem "salvar imagem" ao segurar o dedo */
+}
+
+/* Marca d'água cobrindo a foto inteira: cards da vitrine, foto principal e miniaturas de cor */
+body[data-protegido] [class*='cardImagemWrapper']::after,
+body[data-protegido] [class*='wrapperFotoPrincipal']::after,
+body[data-protegido] [class*='thumbCor']::after,
+body[data-protegido] [class*='btnMiniatura']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--marca-dagua);
+  background-repeat: repeat;
+  pointer-events: none;
+  z-index: 3;
+}
+
+body[data-protegido] [class*='btnMiniatura'] {
+  position: relative;
+}
+
+/* Sem imprimir a página */
+@media print {
+  body[data-protegido] {
+    display: none !important;
+  }
+}
