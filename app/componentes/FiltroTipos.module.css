@@ -1,0 +1,100 @@
+/* Filtro "Tipo de Peça" em árvore: categoria > tipos */
+.arvore {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  padding-right: 4px;
+}
+
+.categoria {
+  border-radius: 5px;
+}
+
+.resumo {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+
+.resumo::-webkit-details-marker {
+  display: none;
+}
+
+.opcao {
+  flex: 1;
+  min-width: 0;
+}
+
+.textoCategoria {
+  text-transform: none;
+}
+
+/* Setinha que abre/fecha os tipos da categoria */
+.seta {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+}
+
+.seta::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-muted);
+  border-bottom: 1.5px solid var(--ink-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+}
+
+.categoria[open] > .resumo .seta::after {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+.seta:hover {
+  background-color: var(--surface);
+}
+
+.subtipos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px 22px;
+  border-left: 1px solid var(--line);
+  margin-left: 18px;
+}
+
+.linhaSimples {
+  display: flex;
+}
+
+/* No celular, mantém a árvore em coluna (sem virar "pílulas" lado a lado) */
+@media (max-width: 900px) {
+  .arvore {
+    max-height: none;
+  }
+
+  .opcao:not([class*='opcaoFiltroAtiva']) {
+    background-color: transparent;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 10px;
+  }
+
+  .opcao {
+    border-radius: 5px;
+  }
+
+  .subtipos {
+    padding-left: 12px;
+    margin-left: 10px;
+  }
+}

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import styles from '../Vitrine.module.css'
+import arvore from './FiltroTipos.module.css'
 import { EstruturaCatalogo, Params, montarUrlFiltro, urlDaMarca } from '../lib/catalogo'
 
 interface Props {
@@ -48,10 +49,9 @@ function GrupoFiltro({ titulo, opcoes, chave, params, extra, manterCaixa }: Grup
 export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAtivo, className }: Props) {
   const { mapaMenus, departamentos, colecoes, campanhas, tipos, categorias, tiposPorCategoria } = estrutura
 
-  // Com uma categoria escolhida, o "Tipo de Peça" mostra só os tipos dela (ex.: vestido longo, midi, curto)
-  const tiposVisiveis = params.cat
-    ? tipos.filter((t) => (tiposPorCategoria[params.cat!] || []).some((x) => x.trim() === t))
-    : tipos
+  // Tipos de peça de cada categoria (ex.: Blusas -> blusa alça fina, blusa alça larga...)
+  const tiposDe = (categoria: string) =>
+    tipos.filter((t) => (tiposPorCategoria[categoria] || []).some((x) => x.trim() === t))
 
   const grupos = params.dep
     ? mapaMenus[params.dep] || []
@@ -109,15 +109,55 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
         })}
       />
       <GrupoFiltro titulo="Grupo" opcoes={grupos} chave="grupo" params={params} />
-      <GrupoFiltro
-        titulo="Categoria"
-        opcoes={categorias}
-        chave="cat"
-        params={params}
-        manterCaixa
-        extra={(valor, ativa) => ({ cat: ativa ? undefined : valor, tipo: undefined })}
-      />
-      <GrupoFiltro titulo="Tipo de Peça" opcoes={tiposVisiveis} chave="tipo" params={params} />
+      {categorias.length > 0 && (
+        <div className={styles.grupoFiltro}>
+          <p className={styles.tituloGrupoFiltro}>Tipo de Peça</p>
+          {/* Em árvore: o nome da categoria mostra todas as peças dela; a seta abre os tipos */}
+          <div className={arvore.arvore}>
+            {categorias.map((categoria) => {
+              const ativa = params.cat === categoria
+              const subtipos = tiposDe(categoria)
+              const linkCategoria = (
+                <Link
+                  href={montarUrlFiltro(params, { cat: ativa ? undefined : categoria, tipo: undefined })}
+                  className={`${styles.opcaoFiltro} ${arvore.opcao} ${ativa && !params.tipo ? styles.opcaoFiltroAtiva : ''}`}
+                >
+                  <span className={arvore.textoCategoria}>{categoria}</span>
+                </Link>
+              )
+              if (subtipos.length <= 1) {
+                return (
+                  <div key={categoria} className={arvore.linhaSimples}>
+                    {linkCategoria}
+                  </div>
+                )
+              }
+              return (
+                <details key={categoria} className={arvore.categoria} open={ativa}>
+                  <summary className={arvore.resumo}>
+                    {linkCategoria}
+                    <span className={arvore.seta} aria-label={`Ver tipos de ${categoria}`} />
+                  </summary>
+                  <div className={arvore.subtipos}>
+                    {subtipos.map((tipo) => {
+                      const tipoAtivo = ativa && params.tipo === tipo
+                      return (
+                        <Link
+                          key={tipo}
+                          href={montarUrlFiltro(params, { cat: categoria, tipo: tipoAtivo ? undefined : tipo })}
+                          className={`${styles.opcaoFiltro} ${arvore.opcao} ${tipoAtivo ? styles.opcaoFiltroAtiva : ''}`}
+                        >
+                          <span>{tipo.toLowerCase()}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </details>
+              )
+            })}
+          </div>
+        </div>
+      )}
       </div>
     </aside>
   )
