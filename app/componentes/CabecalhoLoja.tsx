@@ -27,7 +27,7 @@ export default async function CabecalhoLoja({ marca, estrutura, params, menuToda
   const sessao = await lerSessao()
   const ehTodos = marca === 'TODOS'
   const baseParamsAba: Params = ehTodos ? {} : { marca }
-  const { mapaLogos, mapaMenus, departamentos, colecoes, campanhas } = estrutura
+  const { mapaLogos, categoriasPorDep, departamentos, colecoes, campanhas } = estrutura
 
   return (
     <header className={styles.header}>
@@ -140,7 +140,8 @@ export default async function CabecalhoLoja({ marca, estrutura, params, menuToda
           )}
 
           {departamentos.map((dep) => {
-            const submenus = mapaMenus[dep] || []
+            // Ao passar o mouse: os tipos de peça do departamento (Vestidos, Blusas, Calças...)
+            const submenus = categoriasPorDep[dep] || []
             const ativo = params.dep === dep
             return (
               <div key={dep} className={styles.menuItem}>
@@ -154,13 +155,14 @@ export default async function CabecalhoLoja({ marca, estrutura, params, menuToda
 
                 {submenus.length > 0 && (
                   <div className={styles.submenuDropdown}>
-                    {submenus.map((grp) => (
+                    {submenus.map((cat) => (
                       <Link
-                        key={grp}
-                        href={montarUrlFiltro(baseParamsAba, { dep, grupo: grp })}
+                        key={cat}
+                        href={montarUrlFiltro(baseParamsAba, { dep, cat })}
                         className={styles.submenuLink}
+                        style={{ textTransform: 'none' }}
                       >
-                        {grp.toLowerCase()}
+                        {cat}
                       </Link>
                     ))}
                   </div>

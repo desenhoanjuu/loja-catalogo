@@ -23,6 +23,9 @@ export interface EstruturaCatalogo {
   colecoes: string[]
   campanhas: string[]
   tipos: string[]
+  categorias: string[] // "Vestidos", "Blusas"... (na ordem da vitrine)
+  categoriasPorDep: Record<string, string[]> // categorias de cada departamento (menu do topo)
+  tiposPorCategoria: Record<string, string[]> // "Vestidos" -> ["VESTIDO LONGO", "VESTIDO MIDI"...]
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -379,6 +382,8 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
   const colecoes = new Set<string>()
   const campanhas = new Set<string>()
   const tipos = new Set<string>()
+  const categoriasDep: Record<string, Set<string>> = {}
+  const tiposCategoria: Record<string, Set<string>> = {}
 
   meta.forEach((item) => {
     const dep = item.departamento?.trim()
@@ -393,7 +398,16 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
     }
     if (col) colecoes.add(col)
     if (camp) campanhas.add(camp)
-    if (tipo) tipos.add(tipo)
+    if (tipo) {
+      tipos.add(tipo)
+      const categoria = nomeCategoria(tipo)
+      if (!tiposCategoria[categoria]) tiposCategoria[categoria] = new Set()
+      tiposCategoria[categoria].add(item.tipo_peca) // valor exato do banco, para o filtro
+      if (dep) {
+        if (!categoriasDep[dep]) categoriasDep[dep] = new Set()
+        categoriasDep[dep].add(categoria)
+      }
+    }
   })
 
   const mapaMenus: Record<string, string[]> = {}
@@ -408,6 +422,13 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
     colecoes: Array.from(colecoes).sort(),
     campanhas: Array.from(campanhas).sort(),
     tipos: Array.from(tipos).sort(),
+    categorias: ordenarCategorias(Object.keys(tiposCategoria)),
+    categoriasPorDep: Object.fromEntries(
+      Object.entries(categoriasDep).map(([dep, set]) => [dep, ordenarCategorias(Array.from(set))])
+    ),
+    tiposPorCategoria: Object.fromEntries(
+      Object.entries(tiposCategoria).map(([cat, set]) => [cat, Array.from(set).sort()])
+    ),
   }
 }
 
@@ -619,7 +640,11 @@ export async function conjuntosDaVitrine(produtos: Produto[]): Promise<ItemVitri
 // ==========================================
 // PRODUTOS DA VITRINE (lê tudo, em páginas de 1000)
 // ==========================================
-export async function buscarProdutosVitrine(marca: string, params: Params): Promise<Produto[]> {
+export async function buscarProdutosVitrine(
+  marca: string,
+  params: Params,
+  tiposDaCategoria?: string[] | null // filtro "Categoria": todos os tipos de peça dela
+): Promise<Produto[]> {
   const busca = params.q ? limparBusca(params.q) : ''
 
   const montar = () => {
@@ -630,6 +655,7 @@ export async function buscarProdutosVitrine(marca: string, params: Params): Prom
     if (params.dep) q = q.eq('departamento', params.dep)
     if (params.grupo) q = q.eq('grupo', params.grupo)
     if (params.tipo) q = q.eq('tipo_peca', params.tipo)
+    if (params.cat) q = q.in('tipo_peca', tiposDaCategoria && tiposDaCategoria.length ? tiposDaCategoria : ['__nenhum__'])
     if (params.pe === '1') q = q.gt('estoque_pe', 0)
     if (params.prog === '1') q = q.eq('programacao', true)
     if (busca) {
@@ -694,33 +720,51 @@ const SEM_ORDEM = 1e9
 // batas → camisas → camisetas → casacos → saias → shorts → calças) e, dentro do tipo, o mesmo tecido junto.
 // Ordem dos tipos de peça. A busca é feita na ordem da lista (a primeira que bater vale),
 // por isso "camiseta" vem antes de "camisa" e "cropped" antes de "blusa".
-const CATEGORIAS_PECA: [RegExp, number][] = [
-  [/vestid/, 0],
-  [/macac|jardineira/, 1],
-  [/conjunt/, 2],
-  [/camiset|tshirt/, 10],
-  [/cropp/, 5],
-  [/regat/, 4],
-  [/body/, 7],
-  [/bata/, 8],
-  [/blus/, 3],
-  [/camis/, 9],
-  [/top/, 6],
-  [/casac/, 11],
-  [/jaquet/, 12],
-  [/blaz/, 13],
-  [/colet/, 14],
-  [/cardig|kimon/, 15],
-  [/moletom|sueter/, 16],
-  [/saia/, 17],
-  [/short|bermud/, 18],
-  [/calc|legging|pantalon|jogger/, 19],
+// Categorias de peça: a busca é feita na ordem da lista (a primeira que bater vale), por isso
+// "camiseta" vem antes de "camisa" e "cropped" antes de "blusa". O número é a ordem na vitrine.
+const CATEGORIAS_PECA: { re: RegExp; ordem: number; nome: string }[] = [
+  { re: /vestid/, ordem: 0, nome: 'Vestidos' },
+  { re: /macac|macaq|jardineira/, ordem: 1, nome: 'Macacões' },
+  { re: /conjunt/, ordem: 2, nome: 'Conjuntos' },
+  { re: /camiset|tshirt/, ordem: 10, nome: 'Camisetas' },
+  { re: /cropp/, ordem: 5, nome: 'Croppeds' },
+  { re: /regat/, ordem: 4, nome: 'Regatas' },
+  { re: /body/, ordem: 7, nome: 'Bodies' },
+  { re: /bata/, ordem: 8, nome: 'Batas' },
+  { re: /blus/, ordem: 3, nome: 'Blusas' },
+  { re: /camis/, ordem: 9, nome: 'Camisas' },
+  { re: /top/, ordem: 6, nome: 'Tops' },
+  { re: /casac/, ordem: 11, nome: 'Casacos' },
+  { re: /jaquet/, ordem: 12, nome: 'Jaquetas' },
+  { re: /blaz/, ordem: 13, nome: 'Blazers' },
+  { re: /colet/, ordem: 14, nome: 'Coletes' },
+  { re: /cardig|kimon/, ordem: 15, nome: 'Cardigãs e Kimonos' },
+  { re: /moletom|sueter/, ordem: 16, nome: 'Moletons e Suéteres' },
+  { re: /saia/, ordem: 17, nome: 'Saias' },
+  { re: /short|bermud/, ordem: 18, nome: 'Shorts e Bermudas' },
+  { re: /calc|legging|pantalon|jogger/, ordem: 19, nome: 'Calças' },
 ]
+const OUTRAS_PECAS = { ordem: 20, nome: 'Outras peças' }
+
+function acharCategoria(tipo: string | null | undefined) {
+  const n = normalizarTexto(tipo || '')
+  return CATEGORIAS_PECA.find((c) => c.re.test(n)) || OUTRAS_PECAS
+}
 
 export function categoriaDaPeca(tipo: string | null | undefined): number {
-  const n = normalizarTexto(tipo || '')
-  const achada = CATEGORIAS_PECA.find(([re]) => re.test(n))
-  return achada ? achada[1] : 20
+  return acharCategoria(tipo).ordem
+}
+
+// "VESTIDO LONGO" -> "Vestidos"; "CALÇA SOCIAL" -> "Calças"
+export function nomeCategoria(tipo: string | null | undefined): string {
+  return acharCategoria(tipo).nome
+}
+
+// Ordena nomes de categoria na ordem da vitrine (vestidos, macacões, conjuntos, blusas...)
+export function ordenarCategorias(nomes: string[]): string[] {
+  const ordem = (nome: string) =>
+    (CATEGORIAS_PECA.find((c) => c.nome === nome) || OUTRAS_PECAS).ordem
+  return [...nomes].sort((a, b) => ordem(a) - ordem(b))
 }
 
 function faixaEtaria(n: string) {

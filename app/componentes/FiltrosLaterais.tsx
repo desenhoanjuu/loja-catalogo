@@ -16,9 +16,10 @@ interface GrupoProps {
   chave: string
   params: Params
   extra?: (valor: string, ativa: boolean) => Params
+  manterCaixa?: boolean // mostra o texto como está (ex.: "Cardigãs e Kimonos")
 }
 
-function GrupoFiltro({ titulo, opcoes, chave, params, extra }: GrupoProps) {
+function GrupoFiltro({ titulo, opcoes, chave, params, extra, manterCaixa }: GrupoProps) {
   if (opcoes.length === 0) return null
   return (
     <div className={styles.grupoFiltro}>
@@ -33,7 +34,9 @@ function GrupoFiltro({ titulo, opcoes, chave, params, extra }: GrupoProps) {
               href={montarUrlFiltro(params, alteracoes)}
               className={`${styles.opcaoFiltro} ${ativa ? styles.opcaoFiltroAtiva : ''}`}
             >
-              <span>{valor.toLowerCase()}</span>
+              <span style={manterCaixa ? { textTransform: 'none' } : undefined}>
+                {manterCaixa ? valor : valor.toLowerCase()}
+              </span>
             </Link>
           )
         })}
@@ -43,7 +46,12 @@ function GrupoFiltro({ titulo, opcoes, chave, params, extra }: GrupoProps) {
 }
 
 export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAtivo, className }: Props) {
-  const { mapaMenus, departamentos, colecoes, campanhas, tipos } = estrutura
+  const { mapaMenus, departamentos, colecoes, campanhas, tipos, categorias, tiposPorCategoria } = estrutura
+
+  // Com uma categoria escolhida, o "Tipo de Peça" mostra só os tipos dela (ex.: vestido longo, midi, curto)
+  const tiposVisiveis = params.cat
+    ? tipos.filter((t) => (tiposPorCategoria[params.cat!] || []).some((x) => x.trim() === t))
+    : tipos
 
   const grupos = params.dep
     ? mapaMenus[params.dep] || []
@@ -101,7 +109,15 @@ export default function FiltrosLaterais({ marca, estrutura, params, temFiltroAti
         })}
       />
       <GrupoFiltro titulo="Grupo" opcoes={grupos} chave="grupo" params={params} />
-      <GrupoFiltro titulo="Tipo de Peça" opcoes={tipos} chave="tipo" params={params} />
+      <GrupoFiltro
+        titulo="Categoria"
+        opcoes={categorias}
+        chave="cat"
+        params={params}
+        manterCaixa
+        extra={(valor, ativa) => ({ cat: ativa ? undefined : valor, tipo: undefined })}
+      />
+      <GrupoFiltro titulo="Tipo de Peça" opcoes={tiposVisiveis} chave="tipo" params={params} />
       </div>
     </aside>
   )

@@ -31,15 +31,16 @@ export default async function Vitrine({
 
   const marca = normalizarMarca(params.marca)
   const ehTodos = marca === 'TODOS'
-  const [estrutura, { data: bannersRaw }, produtos] = await Promise.all([
-    carregarEstrutura(marca),
+  // A estrutura vem primeiro: o filtro "Categoria" precisa saber quais tipos de peça entram nela
+  const estrutura = await carregarEstrutura(marca)
+  const [{ data: bannersRaw }, produtos] = await Promise.all([
     supabase
       .from('banners')
       .select('id, marca, tag_campanha, titulo, subtitulo, botao_texto, imagem_url, link_destino')
       .eq('ativo', true)
       .eq('marca', marca)
       .order('ordem', { ascending: true }),
-    buscarProdutosVitrine(marca, params),
+    buscarProdutosVitrine(marca, params, params.cat ? estrutura.tiposPorCategoria[params.cat] : null),
   ])
 
   const banners = ((bannersRaw || []) as BannerItem[])
@@ -55,6 +56,7 @@ export default async function Vitrine({
   if (params.campanha) filtrosAtivos.push({ chave: 'campanha', label: 'Campanha', valor: params.campanha })
   if (params.dep) filtrosAtivos.push({ chave: 'dep', label: 'Depto', valor: params.dep })
   if (params.grupo) filtrosAtivos.push({ chave: 'grupo', label: 'Grupo', valor: params.grupo })
+  if (params.cat) filtrosAtivos.push({ chave: 'cat', label: 'Categoria', valor: params.cat })
   if (params.tipo) filtrosAtivos.push({ chave: 'tipo', label: 'Tipo', valor: params.tipo })
   if (params.pe === '1') filtrosAtivos.push({ chave: 'pe', label: 'Estoque', valor: 'Pronta Entrega' })
   if (params.prog === '1') filtrosAtivos.push({ chave: 'prog', label: 'Estoque', valor: 'Programação' })
