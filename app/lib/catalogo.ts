@@ -23,9 +23,8 @@ export interface EstruturaCatalogo {
   colecoes: string[]
   campanhas: string[]
   tipos: string[]
-  categorias: string[] // "Vestidos", "Blusas"... (na ordem da vitrine)
+  arvoreTipos: RamoTipos[] // Blusa > [Blusa de alça, Blusa manga curta...] (filtro lateral)
   categoriasPorDep: Record<string, string[]> // categorias de cada departamento (menu do topo)
-  tiposPorCategoria: Record<string, string[]> // "Vestidos" -> ["VESTIDO LONGO", "VESTIDO MIDI"...]
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -367,7 +366,7 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
   for (let inicio = 0; ; inicio += passo) {
     let q = supabase
       .from('produtos')
-      .select('departamento, grupo, colecao, campanha, tipo_peca')
+      .select('departamento, grupo, colecao, campanha, tipo_peca, descricao')
       .eq('no_site', true)
       .order('referencia')
       .range(inicio, inicio + passo - 1)
@@ -383,7 +382,7 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
   const campanhas = new Set<string>()
   const tipos = new Set<string>()
   const categoriasDep: Record<string, Set<string>> = {}
-  const tiposCategoria: Record<string, Set<string>> = {}
+  const subtiposCategoria: Record<string, Set<string>> = {}
 
   meta.forEach((item) => {
     const dep = item.departamento?.trim()
@@ -400,9 +399,9 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
     if (camp) campanhas.add(camp)
     if (tipo) {
       tipos.add(tipo)
-      const categoria = nomeCategoria(tipo)
-      if (!tiposCategoria[categoria]) tiposCategoria[categoria] = new Set()
-      tiposCategoria[categoria].add(item.tipo_peca) // valor exato do banco, para o filtro
+      const { categoria, subtipo } = classificarPeca(item)
+      if (!subtiposCategoria[categoria]) subtiposCategoria[categoria] = new Set()
+      subtiposCategoria[categoria].add(subtipo)
       if (dep) {
         if (!categoriasDep[dep]) categoriasDep[dep] = new Set()
         categoriasDep[dep].add(categoria)
@@ -422,12 +421,19 @@ export async function carregarEstrutura(marca: string): Promise<EstruturaCatalog
     colecoes: Array.from(colecoes).sort(),
     campanhas: Array.from(campanhas).sort(),
     tipos: Array.from(tipos).sort(),
-    categorias: ordenarCategorias(Object.keys(tiposCategoria)),
+    arvoreTipos: Object.keys(subtiposCategoria)
+      .sort((a, b) => ordemCategoria(a) - ordemCategoria(b))
+      .map((categoria) => ({
+        categoria,
+        subtipos: Array.from(subtiposCategoria[categoria]).sort(
+          (a, b) => ordemSubtipo(categoria, a) - ordemSubtipo(categoria, b) || a.localeCompare(b)
+        ),
+      })),
     categoriasPorDep: Object.fromEntries(
-      Object.entries(categoriasDep).map(([dep, set]) => [dep, ordenarCategorias(Array.from(set))])
-    ),
-    tiposPorCategoria: Object.fromEntries(
-      Object.entries(tiposCategoria).map(([cat, set]) => [cat, Array.from(set).sort()])
+      Object.entries(categoriasDep).map(([dep, set]) => [
+        dep,
+        Array.from(set).sort((a, b) => ordemCategoria(a) - ordemCategoria(b)),
+      ])
     ),
   }
 }
@@ -640,11 +646,7 @@ export async function conjuntosDaVitrine(produtos: Produto[]): Promise<ItemVitri
 // ==========================================
 // PRODUTOS DA VITRINE (lê tudo, em páginas de 1000)
 // ==========================================
-export async function buscarProdutosVitrine(
-  marca: string,
-  params: Params,
-  tiposDaCategoria?: string[] | null // filtro "Categoria": todos os tipos de peça dela
-): Promise<Produto[]> {
+export async function buscarProdutosVitrine(marca: string, params: Params): Promise<Produto[]> {
   const busca = params.q ? limparBusca(params.q) : ''
 
   const montar = () => {
@@ -655,7 +657,6 @@ export async function buscarProdutosVitrine(
     if (params.dep) q = q.eq('departamento', params.dep)
     if (params.grupo) q = q.eq('grupo', params.grupo)
     if (params.tipo) q = q.eq('tipo_peca', params.tipo)
-    if (params.cat) q = q.in('tipo_peca', tiposDaCategoria && tiposDaCategoria.length ? tiposDaCategoria : ['__nenhum__'])
     if (params.pe === '1') q = q.gt('estoque_pe', 0)
     if (params.prog === '1') q = q.eq('programacao', true)
     if (busca) {
@@ -677,6 +678,13 @@ export async function buscarProdutosVitrine(
     if (!data || data.length === 0) break
     produtos.push(...data)
     if (data.length < passo) break
+  }
+  // Filtro "Tipo de Peça" (categoria e subtipo): calculado a partir do tipo e da descrição
+  if (params.cat || params.sub) {
+    return produtos.filter((p) => {
+      const c = classificarPeca(p)
+      return (!params.cat || c.categoria === params.cat) && (!params.sub || c.subtipo === params.sub)
+    })
   }
   return produtos
 }
@@ -758,6 +766,186 @@ export function categoriaDaPeca(tipo: string | null | undefined): number {
 // "VESTIDO LONGO" -> "Vestidos"; "CALÇA SOCIAL" -> "Calças"
 export function nomeCategoria(tipo: string | null | undefined): string {
   return acharCategoria(tipo).nome
+}
+
+// ==========================================
+// ÁRVORE DE TIPOS DE PEÇA (menu do topo e filtro "Tipo de Peça")
+// Categoria e subtipo saem do tipo da peça e da descrição do ERP. O comprimento (curto/midi/longo)
+// vem do tipo; manga, alça etc. vêm do tipo + descrição.
+// ==========================================
+interface DefSubtipo {
+  nome: string
+  teste: (tipo: string, texto: string, descricaoBruta: string) => boolean
+}
+interface DefCategoria {
+  nome: string
+  subtipos: DefSubtipo[]
+  padrao: string | null // subtipo de quem não se encaixa em nenhum (null = usa o nome do tipo)
+}
+
+// Comprimento: primeiro no tipo; se não tiver, logo depois do nome da peça na descrição
+const comprimento = (alvo: RegExp, peca: string) => (tipo: string, _t: string, descricao: string) =>
+  alvo.test(tipo) || new RegExp(`${peca}\\s+${alvo.source}`, 'i').test(descricao)
+const contem = (re: RegExp) => (_tipo: string, texto: string) => re.test(texto)
+
+const MANGA_CURTA = /mangacurta/
+const MANGA_LONGA = /mangalonga|manga78/
+const MANGA_34 = /manga34|tresquartos/
+const SEM_MANGA = /semmanga|regata/
+const ALCA = /alca/
+const AMARRACAO = /amarra/
+
+export const TAXONOMIA_PECAS: DefCategoria[] = [
+  {
+    nome: 'Blusa',
+    padrao: 'Outras blusas',
+    subtipos: [
+      { nome: 'Blusa tomara que caia', teste: contem(/tomaraquecaia/) },
+      { nome: 'Blusa de alça', teste: contem(ALCA) },
+      { nome: 'Blusa sem manga', teste: contem(SEM_MANGA) },
+      { nome: 'Blusa manga 3/4', teste: contem(MANGA_34) },
+      { nome: 'Blusa manga longa', teste: contem(MANGA_LONGA) },
+      { nome: 'Blusa manga curta', teste: (tipo, texto) => MANGA_CURTA.test(texto) || /camiset|tshirt/.test(tipo) },
+      { nome: 'Blusa com amarração', teste: contem(AMARRACAO) },
+    ],
+  },
+  {
+    nome: 'Vestido',
+    padrao: 'Outros vestidos',
+    subtipos: [
+      { nome: 'Vestido curto', teste: comprimento(/curt/, 'vestido') },
+      { nome: 'Vestido midi', teste: comprimento(/midi/, 'vestido') },
+      { nome: 'Vestido longo', teste: comprimento(/long/, 'vestido') },
+    ],
+  },
+  {
+    nome: 'Camisa',
+    padrao: 'Outras camisas',
+    subtipos: [
+      { nome: 'Camisa baby (ajustada)', teste: contem(/babylook|ajustad/) },
+      { nome: 'Camisa sem manga', teste: contem(SEM_MANGA) },
+      { nome: 'Camisa manga longa', teste: contem(MANGA_LONGA) },
+      { nome: 'Camisa manga curta', teste: contem(MANGA_CURTA) },
+    ],
+  },
+  {
+    nome: 'Short e Bermuda',
+    padrao: 'Short',
+    subtipos: [
+      { nome: 'Bermuda', teste: (tipo) => /bermud/.test(tipo) },
+      { nome: 'Short saia', teste: contem(/shortsaia/) },
+      { nome: 'Short médio', teste: comprimento(/medio/, 'short') },
+      { nome: 'Short curto', teste: comprimento(/curt/, 'short') },
+    ],
+  },
+  {
+    nome: 'Calça',
+    padrao: 'Calça longa / tradicional',
+    subtipos: [
+      { nome: 'Calça cargo', teste: contem(/cargo/) },
+      { nome: 'Calça jogger', teste: contem(/jogger/) },
+      { nome: 'Calça pantacourt', teste: contem(/pantacourt/) },
+      { nome: 'Calça envelope', teste: contem(/envelope/) },
+      { nome: 'Calça midi', teste: comprimento(/midi/, 'cal[cç]a') },
+    ],
+  },
+  {
+    nome: 'Cropped',
+    padrao: 'Outros croppeds',
+    subtipos: [
+      { nome: 'Cropped de alça', teste: contem(ALCA) },
+      { nome: 'Cropped sem manga', teste: contem(SEM_MANGA) },
+      { nome: 'Cropped manga longa', teste: contem(MANGA_LONGA) },
+      { nome: 'Cropped manga curta', teste: contem(MANGA_CURTA) },
+      { nome: 'Cropped com amarração', teste: contem(AMARRACAO) },
+    ],
+  },
+  {
+    nome: 'Macacão',
+    padrao: 'Outros macacões',
+    subtipos: [
+      { nome: 'Macacão curto', teste: (tipo, t, d) => /macaquinho/.test(tipo) || comprimento(/curt/, 'maca[cq]\\w*')(tipo, t, d) },
+      { nome: 'Macacão midi', teste: comprimento(/midi/, 'maca[cq]\\w*') },
+      { nome: 'Macacão longo', teste: comprimento(/long/, 'maca[cq]\\w*') },
+    ],
+  },
+  {
+    nome: 'Saia',
+    padrao: 'Outras saias',
+    subtipos: [
+      { nome: 'Saia curta', teste: comprimento(/curt/, 'saia') },
+      { nome: 'Saia midi', teste: comprimento(/midi/, 'saia') },
+      { nome: 'Saia longa', teste: comprimento(/long/, 'saia') },
+    ],
+  },
+  {
+    nome: 'Jaquetas, Casacos e Tricôs',
+    padrao: null,
+    subtipos: [
+      { nome: 'Jaqueta', teste: (tipo) => /jaquet/.test(tipo) },
+      { nome: 'Casaco', teste: (tipo) => /casac/.test(tipo) },
+      { nome: 'Blazer', teste: (tipo) => /blaz/.test(tipo) },
+      { nome: 'Sweater', teste: (tipo) => /sueter|sweater|trico/.test(tipo) },
+      { nome: 'Cardigan', teste: (tipo) => /cardig/.test(tipo) },
+      { nome: 'Blusão', teste: (tipo) => /blusao|moletom/.test(tipo) },
+    ],
+  },
+  {
+    nome: 'Outros Itens',
+    padrao: null,
+    subtipos: [
+      { nome: 'Bata', teste: (tipo) => /bata/.test(tipo) },
+      { nome: 'Kimono', teste: (tipo) => /kimon/.test(tipo) },
+      { nome: 'Colete', teste: (tipo) => /colet/.test(tipo) },
+    ],
+  },
+]
+
+// Em que categoria a peça entra (a ordem importa: "short saia" é short; "blusão" é agasalho)
+const DETECCAO_CATEGORIA: [RegExp, string][] = [
+  [/short|bermud/, 'Short e Bermuda'],
+  [/macac|macaq|jardineira/, 'Macacão'],
+  [/vestid/, 'Vestido'],
+  [/blusao|jaquet|casac|blaz|sueter|sweater|trico|cardig|moletom/, 'Jaquetas, Casacos e Tricôs'],
+  [/cropp|top/, 'Cropped'],
+  [/camiset|tshirt|regat|body|blus/, 'Blusa'],
+  [/camis/, 'Camisa'],
+  [/saia/, 'Saia'],
+  [/calc|legging|pantalon|jogger|pantacourt/, 'Calça'],
+]
+
+export interface ClassePeca {
+  categoria: string
+  subtipo: string
+}
+
+export function classificarPeca(p: { tipo_peca?: string | null; descricao?: string | null }): ClassePeca {
+  const tipo = normalizarTexto(p.tipo_peca || '')
+  const descricaoBruta = String(p.descricao || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const texto = normalizarTexto(`${p.tipo_peca || ''} ${p.descricao || ''}`)
+  const nomeCat = (DETECCAO_CATEGORIA.find(([re]) => re.test(tipo)) || [null, 'Outros Itens'])[1]
+  const def = TAXONOMIA_PECAS.find((c) => c.nome === nomeCat)!
+  const sub = def.subtipos.find((s) => s.teste(tipo, texto, descricaoBruta))
+  return {
+    categoria: def.nome,
+    subtipo: sub ? sub.nome : def.padrao || formatarNome(p.tipo_peca) || 'Outros',
+  }
+}
+
+// Ordem de exibição: categorias e subtipos na ordem da lista acima ("outros" no fim)
+function ordemCategoria(nome: string) {
+  const i = TAXONOMIA_PECAS.findIndex((c) => c.nome === nome)
+  return i < 0 ? 99 : i
+}
+function ordemSubtipo(categoria: string, nome: string) {
+  const def = TAXONOMIA_PECAS.find((c) => c.nome === categoria)
+  const i = def ? def.subtipos.findIndex((s) => s.nome === nome) : -1
+  return i < 0 ? 98 : i
+}
+
+export interface RamoTipos {
+  categoria: string
+  subtipos: string[]
 }
 
 // Ordena nomes de categoria na ordem da vitrine (vestidos, macacões, conjuntos, blusas...)
