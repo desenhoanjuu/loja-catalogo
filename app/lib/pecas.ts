@@ -19,6 +19,7 @@ export function produtoParaPeca(p: Produto, ctx?: ContextoPreco): Peca {
     grade: p.grade,
     composicao: p.composicao,
     fotosPorCor: p.fotos || {},
+    versaoFotos: p.fotos_versao ?? null,
     caixasPorCor: p.caixas_por_cor || {},
     estoquePorCor: p.estoque_por_cor || {},
     corCapa: p.cor_capa || null,

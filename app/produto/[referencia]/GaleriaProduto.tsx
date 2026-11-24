@@ -18,6 +18,7 @@ export interface Peca {
   corCapa?: string | null // cor escolhida no painel para a vitrine (abre a página nela)
   caixas?: Caixa[] | null // caixas reais do ERP (uma caixa pode ter mais de uma cor)
   precoPeca?: number | null // preço por peça para quem está vendo (null = não mostra)
+  versaoFotos?: number | null // vai no endereço das fotos (?v=...) para não mostrar foto antiga
 }
 
 // Uma caixa do ERP, ex.: CX-22D com Print 416-1 + Print 416-2
@@ -147,8 +148,15 @@ function acharPastaDaCor(corApi: string, pastas: string[]): string | null {
   return final || null
 }
 
+// Endereço da foto com a versão da referência (?v=...), igual ao do card da vitrine
+function urlDaFoto(r2BaseUrl: string, pecas: Peca[], ref: string, arquivo: string) {
+  const base = `${r2BaseUrl}/${ref}/${encodeURIComponent(arquivo)}`
+  const versao = pecas.find((p) => p.referencia === ref)?.versaoFotos
+  return versao ? `${base}?v=${versao}` : base
+}
+
 function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
-  const url = (ref: string, arquivo: string) => `${r2BaseUrl}/${ref}/${encodeURIComponent(arquivo)}`
+  const url = (ref: string, arquivo: string) => urlDaFoto(r2BaseUrl, pecas, ref, arquivo)
 
   const pastasPorPeca = pecas.map((p) => {
     const fotos = p.fotosPorCor || {}
@@ -237,7 +245,7 @@ function montarCores(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
 // Modo caixas: cada opção é uma caixa do ERP. No conjunto, caixas com a mesma letra se juntam
 // (ex.: Caixa A da blusa + Caixa A da calça).
 function montarCaixas(pecas: Peca[], r2BaseUrl: string): CorExibida[] {
-  const url = (ref: string, arquivo: string) => `${r2BaseUrl}/${ref}/${encodeURIComponent(arquivo)}`
+  const url = (ref: string, arquivo: string) => urlDaFoto(r2BaseUrl, pecas, ref, arquivo)
   const ehConjunto = pecas.length > 1
 
   const pastasPorPeca = pecas.map((p) => {
@@ -344,7 +352,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
   const cores = coresBase.map((c) => {
     const doConjunto = fotosConjunto
       // Amostra de cor vem das peças; se alguma foi copiada para o conjunto, não repete
-      .filter((f) => tipoDaFoto(decodeURIComponent(f.url.split('/').pop() || '')) !== 3)
+      .filter((f) => tipoDaFoto(decodeURIComponent(f.url.split('?')[0].split('/').pop() || '')) !== 3)
       .filter((f) => {
         // Foto sem cor: só entra se foi enviada no painel como "Todas as cores".
         // Fotos gerais copiadas da peça (costas.jpg, modelo.jpg) nunca entram.
@@ -354,8 +362,8 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
       })
       .sort(
         (a, b) =>
-          tipoDaFoto(decodeURIComponent(a.url.split('/').pop() || '')) -
-          tipoDaFoto(decodeURIComponent(b.url.split('/').pop() || ''))
+          tipoDaFoto(decodeURIComponent(a.url.split('?')[0].split('/').pop() || '')) -
+          tipoDaFoto(decodeURIComponent(b.url.split('?')[0].split('/').pop() || ''))
       )
     if (doConjunto.length === 0) return c
     // Foto do conjunto copiada de uma peça ("232298_frente_preto.webp" é cópia de
@@ -363,10 +371,10 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
     const originais = new Set(
       doConjunto
         .map((f) => {
-          const nome = decodeURIComponent(f.url.split('/').pop() || '')
+          const nome = decodeURIComponent(f.url.split('?')[0].split('/').pop() || '')
           const m = nome.match(/^([^_]+)_(.+)$/)
           return m && pecas.some((p) => p.referencia === m[1])
-            ? `${r2BaseUrl}/${m[1]}/${encodeURIComponent(m[2])}`
+            ? urlDaFoto(r2BaseUrl, pecas, m[1], m[2])
             : ''
         })
         .filter(Boolean)
@@ -423,7 +431,7 @@ export default function GaleriaProduto({ pecas, r2BaseUrl, fotosConjunto = [] }:
   const fotos = corAtual?.fotos ?? []
   const fotoPrincipal = fotos.length > 0 ? fotos[indiceFoto] || fotos[0] : null
   // Amostra de cor (foto quadrada do tecido): preenche o quadro inteiro em vez de ficar com sobra
-  const nomeArquivo = (url: string) => decodeURIComponent(url.split('/').pop() || '')
+  const nomeArquivo = (url: string) => decodeURIComponent(url.split('?')[0].split('/').pop() || '')
   const ehAmostra = !!fotoPrincipal && tipoDaFoto(nomeArquivo(fotoPrincipal)) === 3
 
   const tituloExibicao = ehConjunto

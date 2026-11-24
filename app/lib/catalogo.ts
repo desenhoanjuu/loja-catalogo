@@ -168,6 +168,13 @@ export interface CapaCard {
 // Escolhe a foto do card: cor escolhida no painel ou, no automático,
 // a cor com foto de frente, evitando preto/branco e preferindo a que tem costas.
 // O hover só mostra as costas; se não houver costas, a imagem não troca.
+// Endereço de uma foto da peça. A versão (?v=...) muda sempre que o painel grava fotos da referência,
+// então uma foto substituída com o mesmo nome aparece na hora (sem a cópia antiga guardada no navegador).
+export function urlFotoPeca(r2BaseUrl: string, referencia: string, arquivo: string, versao?: number | null): string {
+  const base = `${r2BaseUrl}/${referencia}/${encodeURIComponent(arquivo)}`
+  return versao ? `${base}?v=${versao}` : base
+}
+
 // Mesma regra de comparação de nomes que a página do produto usa para achar a pasta da cor
 export function combinaCor(a: string, b: string) {
   if (!a || !b) return false
@@ -198,7 +205,8 @@ export function escolherCapa(
   referencia: string,
   r2BaseUrl: string,
   corCapa?: string | null,
-  permitidas?: string[] | null // cores com caixa disponível; a capa só sai delas
+  permitidas?: string[] | null, // cores com caixa disponível; a capa só sai delas
+  versaoFotos?: number | null // muda quando as fotos mudam: o endereço novo evita mostrar foto antiga
 ): CapaCard {
   const vazio: CapaCard = { capa: null, hover: null, qualidade: 4, manual: false }
   if (!fotos) return vazio
@@ -239,7 +247,7 @@ export function escolherCapa(
         a.indice - b.indice
     )[0]
 
-  const url = (arquivo: string) => `${r2BaseUrl}/${referencia}/${encodeURIComponent(arquivo)}`
+  const url = (arquivo: string) => urlFotoPeca(r2BaseUrl, referencia, arquivo, versaoFotos)
   const ehManual = !!manual
 
   if (escolhida.frente) {
@@ -314,7 +322,10 @@ export function capaDoItem(
       manual: escolhida.manual,
     }
   }
-  const opcoes = pecas.map((p) => ({ peca: p, ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa, permitidas) }))
+  const opcoes = pecas.map((p) => ({
+    peca: p,
+    ...escolherCapa(p.fotos, p.referencia, r2BaseUrl, p.cor_capa, permitidas, p.fotos_versao),
+  }))
   return opcoes.find((o) => o.manual) || [...opcoes].sort((a, b) => a.qualidade - b.qualidade)[0]
 }
 
